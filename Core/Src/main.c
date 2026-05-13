@@ -1,4 +1,8 @@
 #include "stm32f3xx.h"
+#include "fsm.h"
+#include "sensing.h"
+#include "spi_mcp3201.h"
+#include "uart_telem.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -28,6 +32,14 @@
 static float sine_lut[SINE_SAMPLES];
 static float phase_accumulator = 0.0f;
 static float phase_increment = (SINE_FREQ / ISR_RATE_HZ) * SINE_SAMPLES;
+
+/* Shared with the FSM and TIM1 update ISR. They are volatile because the FSM
+ * resets them from the superloop while the ISR advances or observes them. */
+volatile uint32_t g_precharge_ticks = 0u;
+volatile uint8_t g_precharge_done = 0u;
+volatile uint8_t g_pwm_precharge_armed = 0u;
+volatile int8_t g_pwm_last_level = 0;
+volatile float g_pwm_modulation_index = MODULATION_INDEX;
 
 static void SystemClock_Config(void);
 static void Generate_Sine_LUT(void);
@@ -200,7 +212,6 @@ static void TIM1_Config(void)
     TIM1->EGR |= TIM_EGR_UG;
     TIM1->SR = 0u;
     TIM1->DIER = TIM_DIER_UIE;
-    TIM1->BDTR |= TIM_BDTR_MOE;
     TIM1->CR1 |= TIM_CR1_CEN;
 }
 
@@ -237,7 +248,6 @@ static void TIM8_Config(void)
 
     TIM8->EGR |= TIM_EGR_UG;
     TIM8->SR = 0u;
-    TIM8->BDTR |= TIM_BDTR_MOE;
     TIM8->CR1 |= TIM_CR1_CEN;
 }
 
@@ -250,11 +260,17 @@ static void NVIC_Config(void)
 static void System_Init(void)
 {
     SystemClock_Config();
+    (void)SysTick_Config(TIMER_CLK_HZ / 1000u);
+    NVIC_SetPriority(SysTick_IRQn, 15u);
     Generate_Sine_LUT();
     GPIO_Config();
     TIM1_Config();
     TIM8_Config();
+    SPI_MCP3201_Init();
+    UART_Init();
+    Sensing_Init();
     NVIC_Config();
+    FSM_Init();
 }
 
 int main(void)
@@ -262,15 +278,12 @@ int main(void)
     System_Init();
 
     while (1) {
-        __NOP();
+        FSM_Run();
     }
 }
 
 void PWM_Update_IRQHandler(void)
 {
-    static uint32_t precharge_ticks = 0;
-    static uint8_t precharge_done = 0u;
-
     if ((TIM1->SR & TIM_SR_UIF) == 0) {
         return;
     }
@@ -283,10 +296,16 @@ void PWM_Update_IRQHandler(void)
     }
 
     uint32_t sine_index = (uint32_t)phase_accumulator;
-    float sine_value = MODULATION_INDEX * sine_lut[sine_index];
+    float sine_value = g_pwm_modulation_index * sine_lut[sine_index];
+
+    if (g_pwm_precharge_armed == 0u) {
+        g_precharge_ticks = 0u;
+        g_precharge_done = 0u;
+        return;
+    }
 
     /* Bootstrap precharge: force complementary outputs (low-sides) ON briefly. */
-    if (precharge_done == 0u) {
+    if (g_precharge_done == 0u) {
         TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC2E);
         TIM1->CCER |= (TIM_CCER_CC1NE | TIM_CCER_CC2NE);
 
@@ -298,18 +317,19 @@ void PWM_Update_IRQHandler(void)
         TIM8->CCR1 = 0;
         TIM8->CCR2 = 0;
 
-        precharge_ticks++;
-        if (precharge_ticks < PRECHARGE_TICKS) {
+        g_precharge_ticks++;
+        if (g_precharge_ticks < PRECHARGE_TICKS) {
             return;
         }
 
         TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E);
         TIM8->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E);
-        precharge_done = 1u;
+        g_precharge_done = 1u;
     }
 
     float ref = clamp_f(sine_value, -1.0f, 1.0f);
     int8_t level = quantize_5level(ref);
+    g_pwm_last_level = level;
 
     int8_t bridge1 = 0;
     int8_t bridge2 = 0;
