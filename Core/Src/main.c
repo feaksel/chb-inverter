@@ -26,8 +26,12 @@
 #define FIVE_LEVEL_ENABLE 1u
 #define FIVE_LEVEL_T1 0.2f
 #define FIVE_LEVEL_T2 0.6f
+/* Build guide v3.1 section 7.4 mandates max 95% HS duty so the LS gets >=5%
+ * on-time per period to refresh the bootstrap cap through UF4007 + 10 uF. The
+ * LOW clamp constrains the opposite leg whose LS is already on ~99% of the
+ * period, so the bootstrap-refresh rule does not bind it. */
 #define DUTY_LOW_CLAMP 0.01f
-#define DUTY_HIGH_CLAMP 0.99f
+#define DUTY_HIGH_CLAMP 0.95f
 
 static float sine_lut[SINE_SAMPLES];
 static float phase_accumulator = 0.0f;

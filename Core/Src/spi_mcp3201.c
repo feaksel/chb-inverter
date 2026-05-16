@@ -129,16 +129,22 @@ void SPI_MCP3201_Read(uint8_t mask, mcp3201_samples_t *samples)
     cs_set(mask);
     delay_half_period();
 
-    /* MCP3201 SPI mode 0,0: 1.5 SCK sample, NULL bit clocked out on SCK 3 rising
-     * edge, B11..B0 on SCK 4..15. After 16 shifts the 12 data bits land at
-     * raw[12:1], so the correct extraction is (raw >> 1) & 0x0FFF. */
+    /* MCP3201 SPI mode 0,0 per build guide v3.1 section 7.3:
+     *   DOUT returns [NULL][B11][B10]..[B0][X][X][X]
+     * After 16 SCK rising-edge samples the NULL lands at raw[15], data B11..B0
+     * at raw[14:3], so the extraction is (raw >> 3) & 0x0FFF.
+     *
+     * Bringup verification: apply a known low voltage (e.g. 5 V) to the DC
+     * bus input. Expected raw at 5 V is 5 / (105.1/5.1 * 5.0/4096) ≈ 199.
+     * If readings come back ~3120 (i.e. ~8x off), the NULL bit is appearing
+     * at raw[13] instead and the correct shift is (raw >> 1). Adjust here. */
     if ((mask & SENSOR_MASK_DC1) != 0u) {
-        samples->dc1 = (uint16_t)((raw_dc1 >> 1) & 0x0FFFu);
+        samples->dc1 = (uint16_t)((raw_dc1 >> 3) & 0x0FFFu);
     }
     if ((mask & SENSOR_MASK_DC2) != 0u) {
-        samples->dc2 = (uint16_t)((raw_dc2 >> 1) & 0x0FFFu);
+        samples->dc2 = (uint16_t)((raw_dc2 >> 3) & 0x0FFFu);
     }
     if ((mask & SENSOR_MASK_CUR) != 0u) {
-        samples->current = (uint16_t)((raw_cur >> 1) & 0x0FFFu);
+        samples->current = (uint16_t)((raw_cur >> 3) & 0x0FFFu);
     }
 }

@@ -11,27 +11,45 @@ does without having to dig through the diff.
 
 ---
 
-## [Unreleased] — 2026-05-16 — Pre-bringup fixes
+## [Unreleased] — 2026-05-16 — Pre-bringup fixes + build-guide cross-reference
 
-End-to-end review of the firmware before applying high voltage. Five
-firmware-side concerns and one dashboard-side concern were addressed. PWM
-generation in [main.c](Core/Src/main.c) was deliberately left untouched
-because it was already validated on the bench in an earlier session.
+End-to-end review of the firmware before applying high voltage, followed by
+a parameter-by-parameter cross-reference against the team's official build
+guide v3.1 (`CHB_Inverter_Build_Guide_v3_1.pdf`, dated February 2026).
+
+PWM generation in [main.c](Core/Src/main.c) was deliberately left untouched
+because the 500 Hz quantize-staircase modulator was bench-validated in an
+earlier session. The decision to replace it with PSC-PWM (deviating from
+the guide's documented IPD LS-PWM) is captured under "Decisions" below and
+will land in a dedicated branch.
 
 ### Fixed
-- **MCP3201 bit extraction was off by 2 bits** ([spi_mcp3201.c:132-141](Core/Src/spi_mcp3201.c#L132-L141)).
-  After 16 bit-banged SCK cycles, the 12-bit conversion result lives at
-  register bits `[12:1]`, not `[14:3]`. The old `(raw >> 3) & 0x0FFF`
-  decode collapsed the dynamic range to `[2048..3071]` and biased every
-  reading by ~+50%. Replaced with `(raw >> 1) & 0x0FFF`. At a nominal 50 V
-  DC bus this would have read ~64 V and tripped OV on every `START`.
-  This is the change that most directly blocks hardware bringup.
 - **Status line and telemetry line disagreed on "sensor valid"**
   ([uart_telem.c:449-454](Core/Src/uart_telem.c#L449)). `UART_SendStatus`
   used `channel.initialized` (sticky once true), while `UART_SendTelemetry`
   used `channel.available` (can flip back to 0 when a sensor goes lost).
   A sensor that booted OK and later disappeared would still show a stale
   number in `STATUS` but `NAN` in telemetry. Both now use `available`.
+
+### Changed
+- **Duty cycle clamp tightened to 95% per build guide v3.1 section 7.4**
+  ([main.c:30-34](Core/Src/main.c#L30-L34)). `DUTY_HIGH_CLAMP` reduced from
+  `0.99f` to `0.95f`. Ensures the low-side gets ≥5% on-time per period to
+  refresh the bootstrap cap (UF4007 + 10 µF). Output amplitude drops by
+  ~4% (50 V bus → +47.5 V max bridge contribution instead of +49.5 V).
+  `DUTY_LOW_CLAMP` left at `0.01f` — that clamp constrains the opposite
+  leg whose LS is already on ~99% of the period and is not bootstrap-bound.
+
+### Reverted
+- **MCP3201 bit-shift change.** In an earlier pass the shift was changed
+  from `(raw >> 3) & 0x0FFF` to `(raw >> 1) & 0x0FFF` based on one
+  interpretation of the MCP3201 datasheet's 1.5 SCK sample window. The
+  build guide section 7.3 documents `(raw >> 3) & 0x0FFF` with the bit
+  layout `[NULL][B11..B0][X][X][X]` — i.e., NULL at the 1st rising edge
+  sample. Reverted to match the guide. The driver now contains a
+  bringup-verification comment ([spi_mcp3201.c:132-145](Core/Src/spi_mcp3201.c#L132-L145))
+  explaining how to swap to `>> 1` if the bench reading at a known DC
+  input (e.g. 5 V → expected raw ~199) comes back ~8× off.
 
 ### Added
 - **N-of-M debounce on protection trips** ([protection.h:14-17](Core/Inc/protection.h#L14-L17),
@@ -40,8 +58,8 @@ because it was already validated on the bench in an earlier session.
   `PROTECTION_TRIP_COUNT = 3` back-to-back 1 kHz sensor scans before it
   trips. Any clean read resets the counter. Counters are also zeroed in
   `Protection_ClearLatched` so re-entering RUN after a CLEAR starts fresh.
-  Trip latency is 3 ms (3 × 1 ms scan period), well below the time
-  constants of the protected hardware.
+  Trip latency is 3 ms — guide section 5 documents "~1 ms" target, the
+  3 ms is a conscious trade for noise rejection during bringup.
 - **`RESCAN` UART command** ([uart_telem.h](Core/Inc/uart_telem.h),
   [uart_telem.c](Core/Src/uart_telem.c),
   [fsm.c:181-199](Core/Src/fsm.c#L181-L199)). Re-runs `Sensing_SelfTest`
@@ -61,13 +79,82 @@ because it was already validated on the bench in an earlier session.
 
 ### Verified (no code change)
 - **TLP250 gate driver polarity** (concern #10 in the review). The TLP250
-  is non-inverting (LED ON → output HIGH → MOSFET ON). With BDTR `OSSI=1`
-  driving all four TIM outputs LOW when `MOE=0`, all MOSFETs are OFF in
-  IDLE/FAULT/BOOT — i.e., safe. This is consistent with the schematic
-  topology in use (STM32 source config: pin → resistor → pin 2 anode,
-  pin 3 cathode → GND).
+  is non-inverting (LED ON → output HIGH → MOSFET ON). Confirmed by user
+  and consistent with build guide section 3.3.2 (controller PWM pin →
+  220 Ω → pin 2 anode, pin 3 cathode → GND_System — i.e., source config).
+  With BDTR `OSSI=1` driving all four TIM outputs LOW when `MOE=0`, all
+  MOSFETs are OFF in IDLE/FAULT/BOOT — safe at boot, stop, and fault.
+
+### Build-guide v3.1 cross-reference — parameters that match
+Verified item-by-item against the official build guide:
+- DC sensor divider 100 kΩ / 5.1 kΩ with 5 V reference → `CONFIG_VDC_DIVIDER_GAIN`,
+  `CONFIG_VDC_ADC_REF` ([config.h](Core/Inc/config.h)). Resolution 0.252 V/count.
+- ACS712 sensor: 100 mV/A, 2.5 V zero, 0.6 divider, 3.3 V ref → all four
+  `CONFIG_ACS_*` and `CONFIG_CUR_ADC_REF` constants match exactly.
+- Protection thresholds: UV<40 V, OV>58 V, OC>15 A, IMBAL>10 V — match
+  guide section 5.1 byte-for-byte.
+- Bootstrap precharge 5–10 ms → firmware uses 6 ms full-LS-on (functionally
+  equivalent to guide's "50% duty for 5–10 ms" suggestion; both leave the
+  bootstrap cap fully charged).
+- SPI ≤ 1 MHz with 6N137 round-trip margin → bit-bang runs at ~140 kHz,
+  well under the guide's 2 MHz hard limit.
+- Pin header signals (header pins 9–18: SCK, three CS, three MISO, FAULT_OUT,
+  +5 V, +3.3 V, GND, GND) — all match firmware GPIO usage.
+
+### Build-guide v3.1 cross-reference — documentation errors found in the guide
+These are guide-side errors; the firmware is correct. Flagged here so the
+team can publish a v3.2 errata.
+- **PWM_1L pin (header pin 4).** Guide lists "PA10 (TIM1_CH2N)". PA10 has
+  no TIM1_CH2N alternate function on the STM32F303RE. The only valid
+  TIM1_CH2N pins on this package are PA12, PB0, and PB14. Firmware uses
+  **PA12 (AF6)** — confirmed by user as the actual board wiring.
+- **TIM8 channel pins (header pins 5–8).** Guide lists PC6/PC7/PC8/PC9 as
+  TIM8_CH1/CH1N/CH2/CH2N. On F303RE, PC6 = TIM8_CH1 ✓ but PC7 = TIM8_CH2
+  (not CH1N), PC8 = TIM8_CH3 (not CH2), PC9 = TIM8_CH4 (not CH2N). Firmware
+  uses **PB6/PB3/PB8/PB0** which do map correctly to TIM8 CH1/CH1N/CH2/CH2N
+  — confirmed by user as the actual board wiring.
+
+### Build-guide v3.1 cross-reference — deliberate firmware deviations from guide
+- **Modulation strategy.** Guide section 1.2 specifies "In-Phase Disposition
+  Level-Shifted PWM (IPD LS-PWM)". Firmware currently runs a 500 Hz
+  quantize-to-5-levels staircase, which is neither IPD nor PSC and matches
+  the guide only in producing a 5-level output. The upcoming rebalance
+  branch will replace this with **PSC-PWM (phase-shifted carriers, unipolar
+  per cell, 90° shift between the two bridges)** rather than IPD. Reason:
+  PSC is naturally bridge-balanced, whereas IPD has an inherent bridge-loss
+  asymmetry that needs an additional bridge-swap each fundamental cycle to
+  even out. The user has accepted this deviation and will publish a guide
+  v3.2 erratum.
+- **Switching frequency.** Guide specifies 5 kHz; current firmware runs at
+  500 Hz. Will be raised to 5 kHz in the PSC-PWM branch.
+- **Protection scan rate.** Guide implies ≥20 kHz ("4+ scans per 5 kHz
+  period"); firmware uses 1 kHz. Raising this requires speeding up the
+  bit-bang SPI (currently ~140 kHz, can go to ~1 MHz). Deferred pending
+  the switching-frequency change above.
+- **Dead-time.** Guide specifies 500 ns – 1 µs; firmware uses 2 µs (more
+  conservative). Bench-validated, left as-is.
+- **System clock.** Guide example uses 72 MHz (needs external HSE crystal);
+  firmware uses 64 MHz from HSI. All PWM and timer arithmetic is derived
+  from the actual clock, so the numbers stay self-consistent.
 
 ### Decisions
+- **MCP3201 bit-shift trusts the build guide over my datasheet reading.**
+  Two readings of the MCP3201 timing are defensible: (a) NULL bit appears
+  at the 1st SCK rising edge sample → shift `>> 3` (guide); (b) NULL appears
+  at the 3rd SCK rising edge sample after the documented 1.5 SCK sample
+  window → shift `>> 1` (my earlier analysis). Both depend on how
+  aggressively the device drives DOUT after CS↓. Without bench evidence
+  to break the tie, defer to the team's documented design and keep
+  `>> 3`. Bringup verification step added in code comment.
+- **PSC-PWM chosen over the guide's IPD LS-PWM** for the upcoming
+  rebalance branch. The user's reported bridge-1 thermal/current imbalance
+  is exactly the failure mode IPD induces (one bridge always handles the
+  inner band, the other the outer band). PSC fixes this naturally without
+  the cycle-by-cycle bridge-swap that IPD would need. Trade-off: deviation
+  from the documented design — a v3.2 guide erratum will be issued.
+- **95% duty clamp accepted as a guide-compliance change**, even though
+  it touches PWM. The clamp is a parameter, not a modulation-algorithm
+  change, and is required by the guide for bootstrap safety.
 - **Protection filter strategy: N-of-M consecutive, not IIR-on-protection.**
   Three options were on the table — single-sample raw (status quo, prone
   to nuisance trips), IIR-filtered values (smooth but adds ~20–30 ms lag
