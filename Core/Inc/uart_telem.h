@@ -51,7 +51,9 @@ void UART_SendPwmConfig(const char *modulator_name,
                         uint32_t switching_freq_hz,
                         const char *bridge_name,
                         float fundamental_freq_hz,
-                        float modulation_index);
+                        float modulation_index,
+                        uint32_t measured_cnt_offset,
+                        uint8_t  phase_locked);
 void UART_SendStatus(uint32_t ms,
                      fsm_state_t state,
                      sensing_mode_t mode,

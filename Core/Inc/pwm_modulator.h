@@ -13,6 +13,15 @@ extern volatile float    g_phase_increment;
 extern volatile modulator_type_t g_pwm_modulator;
 extern volatile bridge_select_t  g_pwm_bridge_select;
 
+/* Diagnostics populated by Pwm_SetConfig: the measured TIM8-TIM1 CNT offset
+ * (in counter ticks) and whether it landed within 5% of the expected value
+ * for the active modulator (g_pwm_period/2 for PSC, 0 for STAIR/STAIR_ALT).
+ * If g_pwm_phase_locked == 0 after Pwm_SetConfig(PSC, ...), the 90 deg
+ * carrier shift did NOT take and the cascade will degrade to 3-level
+ * output. See HARDWARE_BRINGUP.md troubleshooting. */
+extern volatile uint32_t g_pwm_measured_cnt_offset;
+extern volatile uint8_t  g_pwm_phase_locked;
+
 /* One-time init at boot. Loads defaults from pwm_config.h, configures TIM1
  * and TIM8 with the default switching frequency, leaves MOE=0 so outputs are
  * disabled until the FSM enables them in PRECHARGE. */

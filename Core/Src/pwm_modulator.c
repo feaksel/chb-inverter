@@ -133,12 +133,22 @@ static void timer_base_config(TIM_TypeDef *t)
     t->BDTR = (PWM_DEAD_TIME_DTG << TIM_BDTR_DTG_Pos) | TIM_BDTR_OSSR | TIM_BDTR_OSSI;
 }
 
+/* Last measured carrier offset between TIM1 and TIM8 in counter ticks, as
+ * seen at the end of timer_apply_period_and_phase. For PSC mode the target
+ * is g_pwm_period/2; for STAIR/STAIR_ALT the target is 0. Exposed for the
+ * $C diagnostic line and for HARDWARE_BRINGUP Phase 8 verification. */
+volatile uint32_t g_pwm_measured_cnt_offset = 0u;
+volatile uint8_t  g_pwm_phase_locked = 0u;
+
 static void timer_apply_period_and_phase(void)
 {
     /* MOE is the caller's responsibility (FSM enforces IDLE before reconfig).
      * Sequence: stop counters, write ARR + recenter CCRs, force UG to load
-     * shadow regs and reset CNT, then preset TIM8 CNT for PSC's 90 deg
-     * carrier phase shift if applicable, then restart counters. */
+     * shadow regs and reset CNT, restart counters, then preset TIM8 CNT for
+     * PSC's 90 deg carrier phase shift. The CNT write is performed AFTER
+     * CR1_CEN is set so the timer doesn't immediately reset it through
+     * another UG sequence; in center-aligned modes CNT can be written at
+     * any time and takes effect on the next clock edge. */
     TIM1->CR1 &= ~TIM_CR1_CEN;
     TIM8->CR1 &= ~TIM_CR1_CEN;
 
@@ -149,22 +159,51 @@ static void timer_apply_period_and_phase(void)
     TIM8->CCR1 = g_pwm_period / 2u;
     TIM8->CCR2 = g_pwm_period / 2u;
 
+    TIM1->CNT = 0u;
+    TIM8->CNT = 0u;
+
     TIM1->EGR = TIM_EGR_UG;
     TIM8->EGR = TIM_EGR_UG;
     TIM1->SR = 0u;
     TIM8->SR = 0u;
 
-    /* For PSC the carriers must be 180 deg / N = 90 deg apart for N=2 cells,
-     * which is PWM_PERIOD/2 ticks (a quarter of the full 2*PWM_PERIOD center-
-     * aligned cycle). STAIR mode keeps both carriers in phase. */
-    if (g_pwm_modulator == MODULATOR_PSC) {
-        TIM8->CNT = g_pwm_period / 2u;
-    } else {
-        TIM8->CNT = 0u;
-    }
-
+    /* Enable both counters as close to atomically as possible. With both
+     * timers on APB2 (64 MHz) and back-to-back register writes (~2 cycles
+     * each), the start skew is < 50 ns -- negligible at 5 kHz. */
     TIM1->CR1 |= TIM_CR1_CEN;
     TIM8->CR1 |= TIM_CR1_CEN;
+
+    /* For PSC the carriers must be 180 deg / N = 90 deg apart for N=2 cells,
+     * which is PWM_PERIOD/2 ticks (a quarter of the full 2*PWM_PERIOD center-
+     * aligned cycle). Writing TIM8->CNT post-CEN ensures the UG sequence
+     * above cannot clobber it. STAIR / STAIR_ALT keep carriers in phase. */
+    if (g_pwm_modulator == MODULATOR_PSC) {
+        TIM8->CNT = g_pwm_period / 2u;
+    }
+
+    /* Verify the actual offset shortly after the preset. Read both counters
+     * with IRQs disabled so the value isn't perturbed by a TIM1 update IRQ
+     * landing between the two reads. Both timers tick at the same rate so
+     * the offset is constant once locked. */
+    uint32_t cnt1;
+    uint32_t cnt8;
+    __disable_irq();
+    cnt1 = TIM1->CNT;
+    cnt8 = TIM8->CNT;
+    __enable_irq();
+
+    int32_t offset = (int32_t)cnt8 - (int32_t)cnt1;
+    if (offset < 0) {
+        offset += (int32_t)(g_pwm_period + 1u);
+    }
+    g_pwm_measured_cnt_offset = (uint32_t)offset;
+
+    uint32_t expected = (g_pwm_modulator == MODULATOR_PSC) ? (g_pwm_period / 2u) : 0u;
+    uint32_t tolerance = (g_pwm_period / 20u) + 4u;   /* 5% of period + a few-cycle slack */
+    uint32_t err = (offset > (int32_t)expected) ?
+                       (uint32_t)offset - expected :
+                       expected - (uint32_t)offset;
+    g_pwm_phase_locked = (err <= tolerance) ? 1u : 0u;
 }
 
 void Pwm_Init(void)
@@ -202,7 +241,9 @@ uint8_t Pwm_SetConfig(const pwm_config_t *cfg)
     if (cfg == (const pwm_config_t *)0) {
         return 0u;
     }
-    if ((cfg->modulator != MODULATOR_STAIR) && (cfg->modulator != MODULATOR_PSC)) {
+    if ((cfg->modulator != MODULATOR_STAIR) &&
+        (cfg->modulator != MODULATOR_PSC) &&
+        (cfg->modulator != MODULATOR_STAIR_ALT)) {
         return 0u;
     }
     if ((cfg->bridge_select != BRIDGE_BOTH) &&
@@ -287,6 +328,29 @@ uint8_t Pwm_HandlePrechargeStep(void)
     return 0u;
 }
 
+static void stair_emit(int8_t bridge1, int8_t bridge2)
+{
+    /* Single-bridge test mode: force the inactive bridge to level 0 so it
+     * contributes ~0 V to the cascaded output. The active bridge still
+     * produces its full 3-level swing. */
+    if (g_pwm_bridge_select == BRIDGE_B1_ONLY) {
+        bridge2 = 0;
+    } else if (g_pwm_bridge_select == BRIDGE_B2_ONLY) {
+        bridge1 = 0;
+    }
+
+    float d1a = STAIR_DUTY_LOW_CLAMP, d1b = STAIR_DUTY_LOW_CLAMP;
+    float d2a = STAIR_DUTY_LOW_CLAMP, d2b = STAIR_DUTY_LOW_CLAMP;
+    stair_bridge_level_to_duty(bridge1, &d1a, &d1b);
+    stair_bridge_level_to_duty(bridge2, &d2a, &d2b);
+
+    uint32_t period = g_pwm_period;
+    TIM1->CCR1 = (uint32_t)(d1a * (float)period);
+    TIM1->CCR2 = (uint32_t)(d1b * (float)period);
+    TIM8->CCR1 = (uint32_t)(d2a * (float)period);
+    TIM8->CCR2 = (uint32_t)(d2b * (float)period);
+}
+
 static void stair_modulate(float ref)
 {
     int8_t level = quantize_5level(ref);
@@ -307,25 +371,50 @@ static void stair_modulate(float ref)
         bridge1 = -1; bridge2 = -1;
     }
 
-    /* Single-bridge test mode: force the inactive bridge to level 0 so it
-     * contributes ~0 V to the cascaded output. The active bridge still
-     * produces its full 3-level swing. */
-    if (g_pwm_bridge_select == BRIDGE_B1_ONLY) {
-        bridge2 = 0;
-    } else if (g_pwm_bridge_select == BRIDGE_B2_ONLY) {
-        bridge1 = 0;
+    stair_emit(bridge1, bridge2);
+}
+
+/* STAIR_ALT: same output waveform as STAIR, but the bridge that carries the
+ * +/-1 step alternates every time we re-enter the +/-1 level. Bridges +/-2
+ * are unchanged (both bridges contribute, by definition). Effect: averaged
+ * over ~2 fundamental cycles each bridge handles +/-1 equally often, fixing
+ * the OLD STAIR thermal imbalance without changing the output shape.
+ *
+ * Limitation: this is still NOT real PWM (levels held statically). Output is
+ * a 500 Hz staircase, not a 5 kHz PWM waveform. Use this only if PSC is
+ * proven non-viable on the bench. PSC is what the project actually wants. */
+static int8_t  g_alt_prev_level = 0;
+static uint8_t g_alt_use_bridge2 = 0u;
+
+static void stair_alt_modulate(float ref)
+{
+    int8_t level = quantize_5level(ref);
+    g_pwm_last_level = level;
+
+    /* Toggle ownership each time we (re-)enter a +/-1 step. */
+    if ((level != g_alt_prev_level) && ((level == 1) || (level == -1))) {
+        g_alt_use_bridge2 = (uint8_t)!g_alt_use_bridge2;
+    }
+    g_alt_prev_level = level;
+
+    int8_t bridge1 = 0;
+    int8_t bridge2 = 0;
+
+    if (level >= 2) {
+        bridge1 = 1;  bridge2 = 1;
+    } else if (level == 1) {
+        if (g_alt_use_bridge2) { bridge1 = 0; bridge2 = 1; }
+        else                   { bridge1 = 1; bridge2 = 0; }
+    } else if (level == 0) {
+        bridge1 = 0;  bridge2 = 0;
+    } else if (level == -1) {
+        if (g_alt_use_bridge2) { bridge1 = 0;  bridge2 = -1; }
+        else                   { bridge1 = -1; bridge2 = 0;  }
+    } else {
+        bridge1 = -1; bridge2 = -1;
     }
 
-    float d1a = STAIR_DUTY_LOW_CLAMP, d1b = STAIR_DUTY_LOW_CLAMP;
-    float d2a = STAIR_DUTY_LOW_CLAMP, d2b = STAIR_DUTY_LOW_CLAMP;
-    stair_bridge_level_to_duty(bridge1, &d1a, &d1b);
-    stair_bridge_level_to_duty(bridge2, &d2a, &d2b);
-
-    uint32_t period = g_pwm_period;
-    TIM1->CCR1 = (uint32_t)(d1a * (float)period);
-    TIM1->CCR2 = (uint32_t)(d1b * (float)period);
-    TIM8->CCR1 = (uint32_t)(d2a * (float)period);
-    TIM8->CCR2 = (uint32_t)(d2b * (float)period);
+    stair_emit(bridge1, bridge2);
 }
 
 static void psc_modulate(float ref)
@@ -407,6 +496,8 @@ void Pwm_TIM1_UpdateHandler(void)
 
     if (g_pwm_modulator == MODULATOR_PSC) {
         psc_modulate(ref);
+    } else if (g_pwm_modulator == MODULATOR_STAIR_ALT) {
+        stair_alt_modulate(ref);
     } else {
         stair_modulate(ref);
     }
@@ -417,8 +508,9 @@ uint8_t Pwm_ParseModulator(const char *text, modulator_type_t *out)
     if ((text == (const char *)0) || (out == (modulator_type_t *)0)) {
         return 0u;
     }
-    if (strcmp(text, "STAIR") == 0) { *out = MODULATOR_STAIR; return 1u; }
-    if (strcmp(text, "PSC") == 0)   { *out = MODULATOR_PSC;   return 1u; }
+    if (strcmp(text, "STAIR") == 0)     { *out = MODULATOR_STAIR;     return 1u; }
+    if (strcmp(text, "PSC") == 0)       { *out = MODULATOR_PSC;       return 1u; }
+    if (strcmp(text, "STAIR_ALT") == 0) { *out = MODULATOR_STAIR_ALT; return 1u; }
     return 0u;
 }
 
@@ -435,7 +527,9 @@ uint8_t Pwm_ParseBridgeSelect(const char *text, bridge_select_t *out)
 
 const char *Pwm_ModulatorName(modulator_type_t m)
 {
-    return (m == MODULATOR_PSC) ? "PSC" : "STAIR";
+    if (m == MODULATOR_PSC)       return "PSC";
+    if (m == MODULATOR_STAIR_ALT) return "STAIR_ALT";
+    return "STAIR";
 }
 
 const char *Pwm_BridgeName(bridge_select_t b)

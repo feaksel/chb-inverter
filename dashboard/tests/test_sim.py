@@ -130,6 +130,14 @@ class SimulatorTests(unittest.TestCase):
         self.assertEqual(sim.set_fundamental_freq(60.0), "FFUND 60.00")
         self.assertAlmostEqual(sim.fundamental_freq_hz, 60.0)
 
+    def test_stair_alt_modulator_accepted(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.set_modulator("STAIR_ALT"), "MOD STAIR_ALT")
+        self.assertEqual(sim.modulator, "STAIR_ALT")
+        # And we can flip back:
+        self.assertEqual(sim.set_modulator("STAIR"), "MOD STAIR")
+        self.assertEqual(sim.modulator, "STAIR")
+
     def test_pwm_config_rejects_out_of_range(self) -> None:
         sim = SimController()
         self.assertEqual(sim.set_modulator("BOGUS"), "PWM_CONFIG_REJECTED")

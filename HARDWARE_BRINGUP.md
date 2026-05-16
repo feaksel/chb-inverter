@@ -310,12 +310,24 @@ just at 50 V instead of 10 V.
 
 ---
 
-## Phase 8 — PSC switchover and thermal comparison (the headline test)
+## Phase 8 — PSC switchover and 5-level verification (the headline test)
 
-**Goal:** prove that PSC fixes the bridge-1 thermal imbalance.
+**Goal:** prove PSC delivers both (a) the **5 distinct cascade levels**
+the project requires when run without an output filter, and (b) the
+bridge-thermal balance from concern #8.
 
-**Setup:** Same as Phase 7 (50 V bus, rated load). Bridge 1 heatsink
-temperature from end of Phase 7 noted.
+> **Why this matters more than thermal alone:** STAIR (the OLD modulator)
+> only *looks* like a 5-level output. It's static voltage selection at
+> 500 Hz, holding each level for 2 ms — the legs only "switch" 1 % of the
+> time for bootstrap refresh. It is **not real PWM** and a power-electronics
+> grader will notice. PSC produces true PWM modulation where the cascaded
+> output switches at 5 kHz between 5 distinct levels in a pattern that
+> averages (over the carrier period) to the reference sine. **This is
+> what the project actually requires.**
+
+**Setup:** Same as Phase 7 (50 V bus, rated load — a 100 Ω dummy resistor
+or similar; NO LC filter at the output, that's deliberate). Bridge 1
+heatsink temperature from end of Phase 7 noted.
 
 **Steps:**
 1. `STOP` (if running).
@@ -325,41 +337,104 @@ temperature from end of Phase 7 noted.
    MOD PSC
    FSW 5000
    ```
-   Expect `$A,MOD PSC`, `$C,...,mod=PSC,fsw=5000,...`.
-4. `START`.
-5. Scope the AC output:
-   - Should be a high-frequency PWM (5 kHz carrier) that LC-filters to a
-     50 Hz sine. **It will not look like a staircase** — that's correct.
-   - Average voltage profile (use scope's average mode or low-pass it)
-     should still trace a clean 50 Hz sine swinging ±100 V.
-6. Scope **two gates simultaneously**: PWM_1H (PA8) and PWM_3H (PB6).
-   Both should switch every 200 µs (5 kHz). Their rising edges should
-   be offset by ~50 µs (90° of the 400 µs full center-aligned cycle).
-   This is the PSC carrier phase shift.
-7. Run 15 min at full load. Log both bridges' heatsink temperatures
+4. **Check the firmware-side phase-lock diagnostic** in the `$C` line
+   that's emitted automatically on the config change:
+   ```
+   $C,mod=PSC,fsw=5000,bridge=BOTH,ffund=50.00,mi=0.95,cntoff=3200,lock=OK
+   ```
+   `cntoff` is the measured TIM8-vs-TIM1 counter offset in clock ticks.
+   For PSC at 5 kHz with the 64 MHz timer clock, `PWM_PERIOD = 6399`
+   and the target offset is `6399 / 2 = 3199` (≈ 50 µs of 200 µs period
+   = 90° of the 400 µs center-aligned cycle). `lock=OK` means the
+   measured offset is within ±5 % of target. **`lock=BAD` means the
+   90° shift didn't take and the output will be 3-level instead of
+   5-level** — see [Troubleshooting: PSC carrier shift](#troubleshooting-psc-carrier-shift)
+   before proceeding.
+5. `START`.
+6. **Scope the cascade output (Node_X1 to Node_Y2) — this is the
+   5-level verification.** Set:
+   - Vertical: 25 V/div (so ±2Vdc = ±100 V fits with headroom).
+   - Horizontal: 50 µs/div for the carrier view, OR 2 ms/div for the
+     envelope view.
+   - Probe: use a differential probe or two grounded probes with math
+     (A−B). The output is floating.
+   - Trigger: AC line or self.
+
+   **Expected with `lock=OK`:** the trace at 50 µs/div sweeps between
+   5 distinct horizontal voltage bands — `-100 V`, `-50 V`, `0 V`,
+   `+50 V`, `+100 V`. The density of points at each level varies over
+   the fundamental cycle (more time at ±100 V near the sine peaks,
+   more time at 0 V near zero-crossings). Use persistence mode if your
+   scope supports it; you'll see all 5 bands light up clearly.
+
+   **Expected with `lock=BAD`:** the trace shows only 3 bands —
+   `-100 V`, `0 V`, `+100 V`. The intermediate ±50 V steps are absent
+   because both bridges switch in phase. Bridge thermals will still
+   balance (PSC's structural fix), but the project's 5-level
+   requirement is not met. Fix the phase shift before proceeding.
+
+7. **Scope two gates simultaneously**: PWM_1H (PA8) and PWM_3H (PB6),
+   at MI 0.3 so both are clearly switching. The rising edges should be
+   offset by ~50 µs at FSW=5 kHz. This visually confirms the same
+   90° phase shift that the `cntoff` diagnostic reports.
+8. Set MI back to 0.95: `STOP`, `MI 0.95`, `START`.
+9. Run 15 min at full load. Log both bridges' heatsink temperatures
    every 3 minutes.
 
 **Verify (this is the moment of truth):**
+- [ ] `$C,...,lock=OK` appears after the `MOD PSC` command.
+- [ ] Cascade output scope shows **5 distinct voltage bands** at
+      −100 / −50 / 0 / +50 / +100 V (not just 3).
+- [ ] PWM_1H and PWM_3H scoped together show ~50 µs offset between
+      rising edges.
 - [ ] Bridge 1 and bridge 2 heatsinks converge to **within ~5 °C** of
       each other at steady state.
 - [ ] Total temperature is similar to or slightly lower than the Phase 7
-      STAIR baseline (PSC has more switching but more even distribution).
+      STAIR baseline (PSC has more switching events but more even
+      distribution between bridges).
 - [ ] No fault trips during the 15-minute run.
-- [ ] AC output looks like clean SPWM in the high-frequency view and
-      clean 50 Hz sine after filtering.
-- [ ] PWM_1H and PWM_3H are 90° ± 5 µs apart.
 
-**If the 90° phase shift is wrong** — see [Troubleshooting: PSC carrier shift](#troubleshooting-psc-carrier-shift) below. **Important:**
-the bridge thermal imbalance will still be fixed even if the phase shift
-is wrong, because both bridges see the same continuous modulation either
-way. The phase shift only affects waveform shape (5-level vs 3-level)
-and DC bus stress, not bridge symmetry.
+**If 5-level output is NOT visible** (only 3 levels) — the 90° shift is
+broken. See [Troubleshooting: PSC carrier shift](#troubleshooting-psc-carrier-shift).
+**The project requirement is not met until 5 levels show up on the
+scope.** Apply the troubleshooting fixes before continuing. If none of
+them work, fall back to `MOD STAIR_ALT` (Phase 8b) — you lose true PWM
+modulation but keep 5 visible levels and balanced bridges.
 
 **If PSC works:** edit
 [Core/Inc/pwm_config.h](Core/Inc/pwm_config.h#L32)
 line `#define PWM_DEFAULT_MODULATOR MODULATOR_STAIR` to
 `MODULATOR_PSC`, also change `PWM_DEFAULT_SWITCHING_HZ` from `500u` to
 `5000u`. Rebuild, re-flash. Now PSC is the auto-start default.
+
+---
+
+## Phase 8b — STAIR_ALT fallback (only if PSC won't deliver 5 levels)
+
+**Goal:** keep the project's 5-level deliverable AND fix the bridge-1
+thermal imbalance, even if PSC's 90° phase shift cannot be made to work.
+
+**What STAIR_ALT is:** same staircase output as the OLD STAIR — 5 levels
+held statically for 2 ms each, only 1 % bootstrap-refresh "switching."
+**Not real PWM**, same caveat as STAIR. The improvement: the bridge that
+carries the ±1 step alternates every time the level is re-entered, so
+over ~2 fundamental cycles each bridge handles ±1 equally often.
+
+**When to use:** ONLY if PSC mode produces 3-level output and the
+troubleshooting steps don't recover 5-level. STAIR_ALT preserves the
+5-visible-levels deliverable; PSC at 3 levels does not.
+
+**Steps:**
+1. `STOP`, `MOD STAIR_ALT`, `FSW 500`, `START`.
+2. Scope the cascade output — should look identical to Phase 7 STAIR:
+   5-level staircase, slow steps, no fast PWM activity. 5 levels are
+   trivially present because STAIR_ALT uses the same level-selection
+   logic.
+3. Run 15 min at full load. Heatsink temperatures should converge to
+   within ~5 °C as the bridge-1/bridge-2 ownership of ±1 alternates.
+4. Caveat for grading: be honest that this is not real PWM modulation.
+   The 5 levels are shown but the inverter is operating as a
+   programmable staircase generator, not a multilevel PWM converter.
 
 ---
 
@@ -435,35 +510,41 @@ Either the config command was rejected (look for the corresponding
 IDLE. PWM-config changes require IDLE state.
 
 ### <a name="troubleshooting-psc-carrier-shift"></a>PSC carrier shift is wrong
-**Symptom:** PSC mode produces 3-level output instead of 5-level, or
-the cascaded output looks asymmetric.
+**Symptom:** PSC mode produces 3-level output instead of 5-level at the
+cascade. **For this project this is a hard failure — 5 levels are the
+deliverable.**
 
-**Diagnosis:**
-1. Scope PWM_1H (PA8) and PWM_3H (PB6) simultaneously.
-2. Set `MI 0.3` so both are clearly switching.
-3. Measure phase offset between the two rising edges.
+**Two diagnostics, in order:**
 
-| Measured offset (at FSW 5 kHz) | Diagnosis |
-|---|---|
-| ~50 µs (90°) | Working as intended |
-| ~0 µs (in phase) | TIM8 CNT preset didn't stick. See *Fix A* below |
-| ~100 µs (180°) | TIM8 CNT preset was applied as full ARR not ARR/2. See *Fix B* below |
-| Drifting | TIM1/TIM8 not sharing clock domain. See *Fix C* below |
+**Step 1 — firmware self-report (instant, no scope).** Look at the `$C`
+line that was emitted on the `MOD PSC` command:
+```
+$C,mod=PSC,fsw=5000,bridge=BOTH,ffund=50.00,mi=0.95,cntoff=N,lock=OK|BAD
+```
+`cntoff` is the measured TIM8-TIM1 counter offset in clock ticks (one
+tick = 15.625 ns at 64 MHz). At FSW=5 kHz the expected value is 3199
+(±5 %). `lock=OK` means the firmware confirms the shift took.
+`lock=BAD` means it didn't.
 
-**Consequences (don't panic):**
-- Bridge 1 ↔ Bridge 2 thermal balance is **still fixed** by PSC
-  regardless of phase shift, because both bridges see the same continuous
-  modulation. The thermal imbalance from concern #8 is solved even with
-  broken phase shift.
-- What you lose with broken phase shift:
-  - Output reverts to 3-level (instead of 5-level) when both bridges
-    switch simultaneously → bigger filter requirement, more THD.
-  - DC bus capacitors see 2× ripple current → potentially more cap
-    heating long-term, but not an immediate failure.
+**Step 2 — scope confirmation.** Scope PWM_1H (PA8) and PWM_3H (PB6)
+simultaneously at MI 0.3.
 
-So if Phase 8 thermal comparison passes but the scope shows 3-level
-output, **the headline goal is achieved.** You can ship as-is and fix
-the phase shift later, or apply one of the fixes below.
+| Measured scope offset (at FSW 5 kHz) | `cntoff` value | Diagnosis | Action |
+|---|---|---|---|
+| ~50 µs (90°) | ~3199 | Working as intended | Continue to Phase 8 |
+| ~0 µs (in phase) | <300 or >6099 | TIM8 CNT preset didn't stick | Try *Fix A* |
+| ~100 µs (180°) | ~6399 or ~0 | Wrong divisor | Try *Fix B* |
+| Drifts over many ms | varies | Timers not clock-locked | *Fix C* |
+| `lock=BAD` but `cntoff` looks right | — | Tolerance too tight | *Fix E* |
+
+**Why this matters for the project:** unlike the previous version of
+this doc, broken phase shift is now a project-blocking issue because
+the deliverable is 5 visible cascade levels without an output filter.
+3-level output fails the project spec.
+
+**However:** if all four fixes below fail, **fall back to STAIR_ALT
+(Phase 8b)**, which preserves 5 visible levels (statically) and the
+bridge balance, at the cost of giving up on real PWM modulation.
 
 **Fix A — TIM8 CNT preset not sticking:**
 In [Core/Src/pwm_modulator.c](Core/Src/pwm_modulator.c) around line 147:
@@ -501,6 +582,26 @@ If software CNT preset proves unreliable, switch to hardware-triggered
 slaving. Configure TIM1 to output TRGO on update; configure TIM8 in
 gated/trigger mode with ITR0 (TIM1) as source. This requires deeper
 changes — only worth doing if A/B/C all fail.
+
+**Fix E — Loosen the lock tolerance:**
+The firmware reports `lock=BAD` when measured offset is >5 % off the
+expected ARR/2. If the scope shows correct ~50 µs separation but the
+firmware reports `lock=BAD`, the tolerance is too tight (likely because
+the post-CEN CNT read happened a few cycles into the count). Edit
+[Core/Src/pwm_modulator.c](Core/Src/pwm_modulator.c) the line:
+```c
+uint32_t tolerance = (g_pwm_period / 20u) + 4u;
+```
+Increase the additive slack from `4u` to e.g. `64u` (1 µs at 64 MHz).
+Rebuild. Only do this if the scope confirms the actual offset is correct
+and only the diagnostic is over-strict.
+
+**Fall-back if all of A–E fail:**
+Use `MOD STAIR_ALT` (Phase 8b). Keeps 5 visible levels at the cascade
+output, balances bridges via alternation, sacrifices true PWM modulation.
+The scope will show the same 5-step staircase as OLD STAIR, not the
+high-frequency PWM modulation that PSC produces. This is the
+project-grade backstop.
 
 ### Bridge isolation isn't working
 **Symptom:** `BRIDGE B1` selected, but bridge 2 gates still switch (or

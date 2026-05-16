@@ -18,6 +18,33 @@ Adds a second modulator alongside the bench-validated STAIR, makes the PWM
 runtime-configurable from UART/dashboard, and adds an auto-start path so
 the system runs standalone with safe defaults when no UART is connected.
 
+### Updates after user feedback on STAIR being "fake PWM"
+User correctly identified that the OLD STAIR modulator is **not real PWM** —
+it's static level selection where each of 5 levels is held for 2 ms with
+only 1 % bootstrap-refresh "switching." Since the project deliverable is
+5 distinct cascade levels visible on a scope **without** an output LC
+filter, the PSC modulator's 90° carrier phase shift escalates from
+"nice to have" to **mandatory** — without it, PSC degrades to 3-level
+output which fails the project spec.
+
+Three changes added in response:
+
+- **`MODULATOR_STAIR_ALT`** ([pwm_modulator.c:stair_alt_modulate](Core/Src/pwm_modulator.c)).
+  Same staircase output as STAIR (so 5 levels are trivially visible)
+  but the bridge that carries the ±1 step alternates each time the
+  level is re-entered. Fixes the thermal imbalance without changing
+  the visible output shape. Still NOT real PWM — used as a hard-fallback
+  if PSC's 90° shift cannot be made to work on hardware.
+- **PSC phase-shift hardening** ([pwm_modulator.c:timer_apply_period_and_phase](Core/Src/pwm_modulator.c)).
+  TIM8->CNT is now written AFTER `CR1_CEN` is set (post-UG sequence
+  cannot clobber it). The actual TIM8-TIM1 counter offset is read
+  back, compared to the expected ARR/2, and exposed as two new
+  diagnostics: `g_pwm_measured_cnt_offset` (ticks) and
+  `g_pwm_phase_locked` (0/1).
+- **`$C` config line now reports phase-lock**:
+  `$C,...,cntoff=<ticks>,lock=OK|BAD`. Operator sees instantly whether
+  PSC will actually produce 5-level output without needing a scope.
+
 ### Added
 - **`pwm_modulator.c/h` + `pwm_config.h`** — new module that owns all
   PWM-related state: sine LUT, phase accumulator, period, precharge counters,

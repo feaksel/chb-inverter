@@ -413,7 +413,8 @@ void UART_SendFault(uint8_t faults)
 void UART_SendHelp(void)
 {
     UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN "
-                     "MOD STAIR|PSC FSW <hz> BRIDGE BOTH|B1|B2 FFUND <hz> CONFIG\r\n");
+                     "MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
+                     "FFUND <hz> CONFIG\r\n");
 }
 
 uint8_t UART_ActivitySeen(void)
@@ -425,9 +426,11 @@ void UART_SendPwmConfig(const char *modulator_name,
                         uint32_t switching_freq_hz,
                         const char *bridge_name,
                         float fundamental_freq_hz,
-                        float modulation_index)
+                        float modulation_index,
+                        uint32_t measured_cnt_offset,
+                        uint8_t  phase_locked)
 {
-    char line[140];
+    char line[180];
     uint32_t pos = 0u;
 
     append_str(line, &pos, sizeof(line), "$C,mod=");
@@ -440,6 +443,10 @@ void UART_SendPwmConfig(const char *modulator_name,
     append_fixed2(line, &pos, sizeof(line), fundamental_freq_hz);
     append_str(line, &pos, sizeof(line), ",mi=");
     append_fixed2(line, &pos, sizeof(line), modulation_index);
+    append_str(line, &pos, sizeof(line), ",cntoff=");
+    append_u32(line, &pos, sizeof(line), measured_cnt_offset);
+    append_str(line, &pos, sizeof(line), ",lock=");
+    append_str(line, &pos, sizeof(line), phase_locked ? "OK" : "BAD");
     append_str(line, &pos, sizeof(line), "\r\n");
     UART_WriteString(line);
 }

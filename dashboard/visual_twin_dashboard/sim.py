@@ -112,7 +112,7 @@ class SimController:
     def set_modulator(self, modulator: str) -> str:
         if self.state != "IDLE":
             return "PWM_CONFIG_REQUIRES_IDLE"
-        if modulator not in ("STAIR", "PSC"):
+        if modulator not in ("STAIR", "PSC", "STAIR_ALT"):
             return "PWM_CONFIG_REJECTED"
         self.modulator = modulator
         return f"MOD {modulator}"

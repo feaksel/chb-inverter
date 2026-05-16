@@ -222,7 +222,9 @@ static void emit_pwm_config_line(void)
                        cfg->switching_freq_hz,
                        Pwm_BridgeName(cfg->bridge_select),
                        cfg->fundamental_freq_hz,
-                       cfg->modulation_index);
+                       cfg->modulation_index,
+                       g_pwm_measured_cnt_offset,
+                       g_pwm_phase_locked);
 }
 
 static uint8_t require_idle_for_pwm_config(void)

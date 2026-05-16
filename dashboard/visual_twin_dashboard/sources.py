@@ -65,7 +65,7 @@ class SimSource(BaseSource):
             reply = "STATUS"
         elif text == "HELP":
             reply = ("START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 "
-                     "RESCAN MOD STAIR|PSC FSW <hz> BRIDGE BOTH|B1|B2 "
+                     "RESCAN MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
                      "FFUND <hz> CONFIG")
         elif text == "RESCAN":
             reply = self.controller.rescan()

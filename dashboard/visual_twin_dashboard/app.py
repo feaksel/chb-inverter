@@ -300,7 +300,7 @@ class DashboardWindow(QMainWindow):
 
         mod_row = QHBoxLayout()
         self.mod_combo = QComboBox()
-        self.mod_combo.addItems(["STAIR", "PSC"])
+        self.mod_combo.addItems(["STAIR", "PSC", "STAIR_ALT"])
         self.mod_btn = QPushButton("Set Mod")
         self.mod_btn.clicked.connect(self._send_mod)
         mod_row.addWidget(QLabel("Modulator"))
