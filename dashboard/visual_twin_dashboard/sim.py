@@ -56,6 +56,10 @@ class SimController:
         self.precharge_until_ms: Optional[int] = None
         self.phase = 0.42
         self.event: Optional[str] = None
+        self.modulator = "STAIR"
+        self.switching_freq_hz = 500
+        self.bridge_select = "BOTH"
+        self.fundamental_freq_hz = 50.0
 
     def start(self) -> str:
         if self.state != "IDLE":
@@ -104,6 +108,45 @@ class SimController:
             self.scenario_key = "nominal"
             self.scenario_started_ms = self.ms
         return "RESCAN"
+
+    def set_modulator(self, modulator: str) -> str:
+        if self.state != "IDLE":
+            return "PWM_CONFIG_REQUIRES_IDLE"
+        if modulator not in ("STAIR", "PSC"):
+            return "PWM_CONFIG_REJECTED"
+        self.modulator = modulator
+        return f"MOD {modulator}"
+
+    def set_bridge(self, bridge: str) -> str:
+        if self.state != "IDLE":
+            return "PWM_CONFIG_REQUIRES_IDLE"
+        if bridge not in ("BOTH", "B1", "B2"):
+            return "PWM_CONFIG_REJECTED"
+        self.bridge_select = bridge
+        return f"BRIDGE {bridge}"
+
+    def set_switching_freq(self, hz: int) -> str:
+        if self.state != "IDLE":
+            return "PWM_CONFIG_REQUIRES_IDLE"
+        if hz < 100 or hz > 20000:
+            return "FSW_RANGE_100_TO_20000"
+        self.switching_freq_hz = int(hz)
+        return f"FSW {self.switching_freq_hz}"
+
+    def set_fundamental_freq(self, hz: float) -> str:
+        if self.state != "IDLE":
+            return "PWM_CONFIG_REQUIRES_IDLE"
+        if hz < 10.0 or hz > 400.0:
+            return "FFUND_RANGE_10_TO_400"
+        self.fundamental_freq_hz = float(hz)
+        return f"FFUND {hz:.2f}"
+
+    def config_summary(self) -> str:
+        return (
+            f"mod={self.modulator},fsw={self.switching_freq_hz},"
+            f"bridge={self.bridge_select},ffund={self.fundamental_freq_hz:.2f},"
+            f"mi={self.modulation_index:.2f}"
+        )
 
     def run_scenario(self, key: str) -> str:
         if key not in SCENARIOS:

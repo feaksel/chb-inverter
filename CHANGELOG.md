@@ -11,6 +11,213 @@ does without having to dig through the diff.
 
 ---
 
+## [0.5.0-dev] — branch `pwm-rewrite-configurable` — PSC-PWM + runtime config
+
+Branched from `main` at commit `f5ff93f` (the reverted-MCP3201-shift state).
+Adds a second modulator alongside the bench-validated STAIR, makes the PWM
+runtime-configurable from UART/dashboard, and adds an auto-start path so
+the system runs standalone with safe defaults when no UART is connected.
+
+### Added
+- **`pwm_modulator.c/h` + `pwm_config.h`** — new module that owns all
+  PWM-related state: sine LUT, phase accumulator, period, precharge counters,
+  modulator dispatch, timer reconfig, both modulator implementations. The
+  TIM1 update IRQ handler now lives here as `Pwm_TIM1_UpdateHandler`; the
+  bare-metal init in [main.c](Core/Src/main.c) just calls `Pwm_Init()`.
+- **PSC modulator** — unipolar phase-shifted-carrier SPWM at the configured
+  switching frequency. TIM8 CNT preset to `PWM_PERIOD/2` at config time gives
+  the 90° carrier shift required for natural 5-level output from two
+  cascaded cells. Same precharge sequence, same fault-trip path, same
+  telemetry as STAIR. Bridge 1 and bridge 2 carry equal switching load — the
+  point of the rewrite.
+- **STAIR modulator** — the bench-validated 500 Hz quantize-to-5-levels
+  implementation, moved verbatim from `main.c` into `pwm_modulator.c`. The
+  duty math, `quantize_5level`, `bridge_level_to_duty`, and the precharge
+  sequence are byte-for-byte the OLD code. Selectable at runtime so you can
+  A/B compare against PSC on the bench without reflashing.
+- **Runtime PWM configuration** ([pwm_config.h](Core/Inc/pwm_config.h)) with
+  safe defaults that match the OLD bench-validated PWM (STAIR / 500 Hz /
+  BOTH / MI 0.95 / 50 Hz fundamental). All settable in IDLE via UART.
+- **New UART commands** (with dashboard buttons/dropdowns to match):
+  - `MOD STAIR|PSC` — pick modulator algorithm
+  - `FSW <hz>` — switching frequency (100..20000 Hz)
+  - `BRIDGE BOTH|B1|B2` — single-bridge test mode (the inactive bridge is
+    driven into freewheel so its contribution to the cascaded output is 0 V;
+    the active bridge produces its normal 3-level swing)
+  - `FFUND <hz>` — fundamental frequency (10..400 Hz)
+  - `CONFIG` — print the current `$C,mod=...,fsw=...,bridge=...,ffund=...,mi=...`
+    line; also emitted on every config change for the dashboard log
+  - `HELP` updated to list all new commands
+- **Auto-start path** ([fsm.c](Core/Src/fsm.c)). If no UART byte is received
+  within `PWM_AUTOSTART_DELAY_MS = 3000 ms` after `FSM_Init` completes, the
+  FSM issues its own START using the loaded defaults and emits
+  `$A,AUTO_START` so any later-attached dashboard sees the event. Any UART
+  RX byte cancels auto-start permanently — operator presence overrides
+  standalone behavior. Detection uses `UART_ActivitySeen()`, which is set
+  in the USART2 RX IRQ on any byte (not just valid commands).
+- **Bridge isolation in both modulators** — `BRIDGE_B1_ONLY` forces bridge 2
+  into freewheel state (both legs at LOW clamp duty, contribution ≈ 0 V) and
+  vice versa. Active bridge produces 3-level (−Vdc / 0 / +Vdc) output.
+- **Dashboard PWM Config panel** — `MOD`/`FSW`/`BRIDGE`/`FFUND` controls
+  inside the existing Controls group, plus a `CONFIG` button. `FSW` is a
+  presets dropdown (500 / 1000 / 2000 / 5000 / 10000 Hz) with free-form
+  custom-value input. Bottom panel grown to 220–360 px to fit.
+- **Sim controller stubs** for all new commands ([sim.py](dashboard/visual_twin_dashboard/sim.py))
+  so scenario playback continues to mirror firmware behavior; 4 new unit
+  tests verify the config-change happy path, range rejection, IDLE-only
+  gating, and the `config_summary()` formatting.
+
+### Changed
+- **`main.c` slimmed from 367 → 122 lines.** Everything PWM-related moved
+  to `pwm_modulator.c`. `main.c` now owns only: clock config, GPIO setup,
+  NVIC priorities, SysTick, and `main()` itself.
+- **TIM1_UP_TIM16 IRQ handler** ([stm32f3xx_it.c](Core/Src/stm32f3xx_it.c))
+  now calls `Pwm_TIM1_UpdateHandler` instead of the old `PWM_Update_IRQHandler`.
+- **`MI` command** routes through the new lightweight `Pwm_SetModulationIndex`
+  helper so the cached config struct stays in sync with `g_pwm_modulation_index`
+  without triggering an unnecessary timer reconfig.
+- **`FSM_Init`** now emits a `$C` config line right after `BOOT_SELF_TEST_DONE`
+  so any dashboard connecting on boot sees the active PWM configuration
+  immediately without having to issue `CONFIG`.
+
+### Decisions
+- **Two modulators behind a runtime switch, not a build-time flag.**
+  Lets the user A/B test on the same bench session without reflashing,
+  and keeps the "known-good fallback" property of STAIR while PSC is
+  being characterised. The dispatch is a single `if` at the bottom of
+  `Pwm_TIM1_UpdateHandler` — negligible ISR overhead.
+- **All PWM state lives in `pwm_modulator.c`, including the OLD STAIR
+  globals (`g_precharge_ticks`, etc.).** Originally these were in `main.c`
+  and `fsm.c` accessed them via extern. Centralising in the modulator means
+  `main.c` becomes just system bring-up, and timing-critical state has one
+  owner. `fsm.c` still uses extern declarations for the precharge handshake.
+- **STAIR is moved, not duplicated.** The OLD STAIR ISR logic is moved
+  verbatim into `stair_modulate()` in `pwm_modulator.c` — quantize, level
+  mapping, duty clamp, CCR writes are byte-for-byte the same as the
+  bench-validated `main.c` ISR. The only additions are: (a) reading
+  `g_pwm_period` instead of the `PWM_PERIOD` macro, so FSW can change at
+  runtime; and (b) the `g_pwm_bridge_select` check after the level
+  computation to support single-bridge test mode.
+- **PSC carrier phase shift via TIM8 CNT preset, not via slave-mode
+  triggering.** Simpler and good enough — both timers share a clock, so
+  once the offset is set at `Pwm_SetConfig` time they stay locked. Slight
+  drift over many hours is theoretically possible but the LUT-driven sine
+  re-aligns the phase relationship every fundamental period anyway.
+- **PSC uses 0.05/0.95 duty clamps; STAIR keeps 0.01/0.95.** PSC actively
+  modulates both legs symmetrically, so both clamps bind. STAIR's "off"
+  leg sits at ~1% duty (HS almost off, LS almost on) — bootstrap is fine
+  on that leg, the 5% rule only constrains the "on" leg's HS.
+- **Auto-start fires regardless of sensing mode.** Even if the mode
+  auto-demoted to `OPEN_LOOP` (no sensors connected), auto-start still
+  fires after 3 s with a UART warning ("$E,WARNING_OPEN_LOOP_NO_PROTECTION"
+  follows the "$A,AUTO_START"). The alternative — blocking auto-start in
+  OPEN — would defeat the standalone-demo use case. The "no UART = no
+  operator" assumption is the safety boundary; the operator who deployed
+  the firmware without sensors accepted the OPEN risk.
+- **`Pwm_SetConfig` always reconfigures the timer**, even for fields that
+  don't affect the timer (like `bridge_select` or `modulation_index`).
+  Simpler than tracking which fields changed. A reconfig in IDLE is
+  invisible to the operator (MOE off, no output disruption) and cheap
+  (~20 instruction cycles plus EGR_UG). The `Pwm_SetModulationIndex`
+  helper exists only because `MI` is a hot path the operator may tweak
+  repeatedly during bringup.
+- **Bridge isolation = freewheel, not high-Z.** The inactive bridge's
+  outputs are driven to LOW duty (both HS off, both LS on, ≈99% of period),
+  which holds its terminals at the bridge's local 0 V. Net contribution to
+  the cascaded output is 0 V. Alternative — disabling the timer outputs
+  entirely (CCxE=0) — would let the output float and let body diodes
+  potentially conduct, which is worse than a controlled freewheel.
+- **Telemetry `$T,...` format unchanged.** Dashboard parser still works
+  with no modification. New PWM-config information rides on the existing
+  `$S,...` STATUS line (and the new `$C,...` config line). This keeps
+  v0.3.0 dashboards forward-compatible with this firmware — they'll just
+  ignore the `$C` line.
+
+### Known-issue impact
+- **Bridge 1 thermal/current imbalance** (the headline reason for this
+  branch) — fix path: switch to `MOD PSC` at runtime. Bench validation
+  step is to run STAIR for 5 min, measure both bridges' MOSFET case temps,
+  then switch to PSC for 5 min and re-measure; they should converge to
+  within ~3 °C. If they do, this branch is the win and the guide's IPD
+  recommendation can be updated to PSC in v3.2.
+- **HAL cleanup** still deferred — orthogonal to this branch.
+
+### Bringup sequence on this branch
+A full phase-by-phase procedure with what-to-expect, scope captures, and
+troubleshooting lives in [HARDWARE_BRINGUP.md](HARDWARE_BRINGUP.md). High-level:
+1. Boot emits `$A,BOOT_SELF_TEST_DONE` + `$C` config line + (if applicable)
+   `$E,MODE_DEMOTED` + (if applicable) `$E,WARNING_OPEN_LOOP_NO_PROTECTION`.
+2. Send any UART byte within 3 s to cancel auto-start; otherwise look for
+   `$A,AUTO_START`.
+3. `CONFIG` → STAIR baseline → measure thermals → switch to PSC → re-measure.
+4. Per-bridge isolation tests with `BRIDGE B1` / `BRIDGE B2`.
+5. If PSC checks out, flip `PWM_DEFAULT_MODULATOR` in
+   [pwm_config.h](Core/Inc/pwm_config.h) to `MODULATOR_PSC` and merge to `main`.
+
+### Build verification (2026-05-16)
+Compiled and linked locally using STM32CubeIDE 1.17's bundled toolchain
+(`arm-none-eabi-gcc 12.3.1`, the same compiler the IDE invokes) so the
+branch is known-good before any bench bringup:
+
+```
+Build flags (matches .cproject):
+  -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb
+  -DDEBUG -DUSE_HAL_DRIVER -DSTM32F303xE
+  -ICore/Inc -IDrivers/STM32F3xx_HAL_Driver/Inc/Legacy
+  -IDrivers/STM32F3xx_HAL_Driver/Inc
+  -IDrivers/CMSIS/Device/ST/STM32F3xx/Include -IDrivers/CMSIS/Include
+  -O0 -g3 -Wall -Wextra -Wshadow -Wundef
+  -ffunction-sections -fdata-sections
+
+Link flags:
+  -TSTM32F303RETX_FLASH.ld -Wl,--gc-sections -static
+  --specs=nano.specs --specs=nosys.specs -u_printf_float
+  -Wl,--start-group -lc -lm -Wl,--end-group
+```
+
+Result: 11 Core/Src .c files + 14 HAL drivers + startup.s → ELF
+35.5 KB code / 468 B data / 3.7 KB BSS. Total Flash 36 KB of 512 KB
+available, total RAM 4.1 KB of 64 KB. **Zero warnings** under the strict
+warning set above.
+
+`nm` against the linked ELF confirms every new symbol from this branch
+is present and resolved:
+- `Pwm_TIM1_UpdateHandler`, `Pwm_Init`, `Pwm_SetConfig`, `Pwm_GetConfig`,
+  `Pwm_SetModulationIndex`, `Pwm_HandlePrechargeStep`,
+  `Pwm_ParseModulator`, `Pwm_ParseBridgeSelect`, `Pwm_ModulatorName`,
+  `Pwm_BridgeName`, `psc_modulate`
+- `do_start`, `handle_mod`, `handle_bridge`, `handle_fsw`, `handle_ffund`,
+  `emit_pwm_config_line`, `g_auto_start_done`
+- `UART_ActivitySeen`, `UART_SendPwmConfig`
+- All global config state defined exactly once
+  (`g_pwm_modulator`, `g_pwm_bridge_select`, `g_pwm_period`, etc.)
+
+Flashable artifacts produced under `build/`:
+- `5levelchb.elf` — debug symbols for CubeIDE/gdb (1.07 MB)
+- `5levelchb.bin` — raw binary for drag-and-drop to the Nucleo's USB
+  mass-storage drive (36.5 KB)
+- `5levelchb.hex` — Intel HEX for ST-LINK Utility / STM32CubeProgrammer
+  (100 KB)
+- `5levelchb.map` — link map for symbol/section debugging (445 KB)
+
+### Dashboard test verification
+19 / 19 unit tests pass — the 15 pre-existing protocol + sim tests plus
+4 new tests in [dashboard/tests/test_sim.py](dashboard/tests/test_sim.py)
+covering:
+- Default PWM config values match firmware defaults.
+- Each setter (`set_modulator`, `set_bridge`, `set_switching_freq`,
+  `set_fundamental_freq`) updates state and returns the expected ack string.
+- Out-of-range values return the correct error string.
+- All four setters reject when not in IDLE.
+- `config_summary()` format matches what the firmware emits on `$C`.
+
+Run from `dashboard/`:
+```
+py -3 -m unittest discover tests -v
+```
+
+---
+
 ## [Unreleased] — 2026-05-16 — Pre-bringup fixes + build-guide cross-reference
 
 End-to-end review of the firmware before applying high voltage, followed by

@@ -1,5 +1,7 @@
 #include "fsm.h"
 #include "protection.h"
+#include "pwm_config.h"
+#include "pwm_modulator.h"
 #include "sensing.h"
 #include "uart_telem.h"
 
@@ -13,6 +15,8 @@ static volatile uint32_t g_ms_ticks = 0u;
 static fsm_state_t g_state = FSM_STATE_BOOT;
 static sensing_mode_t g_mode = MODE_OPEN_LOOP;
 static uint32_t g_last_telem_ms = 0u;
+static uint32_t g_boot_ms = 0u;
+static uint8_t  g_auto_start_done = 0u;
 
 static void pwm_disable_and_reset_precharge(void)
 {
@@ -93,22 +97,35 @@ static uint8_t active_faults_for_clear(void)
     return Protection_Check(Sensing_GetData(), g_mode);
 }
 
-static void handle_start(const uart_command_t *cmd)
+/* Common arm-and-go path used by both the UART START command and the
+ * auto-start logic. Pass the original command text for the Ack, or NULL to
+ * emit "$A,AUTO_START" instead. Returns 1 on success, 0 on rejection. */
+static uint8_t do_start(const char *ack_text)
 {
     if (g_state != FSM_STATE_IDLE) {
         UART_SendError("START_ALLOWED_ONLY_IN_IDLE");
-        return;
+        return 0u;
     }
     if (Sensing_ModeSensorsAvailable(g_mode) == 0u) {
         UART_SendError("MODE_SENSOR_UNAVAILABLE");
-        return;
+        return 0u;
     }
 
-    UART_SendAck(cmd->raw);
+    if (ack_text != (const char *)0) {
+        UART_SendAck(ack_text);
+    } else {
+        UART_WriteString("$A,AUTO_START\r\n");
+    }
     warn_if_open_loop();
     Protection_ClearLatched();
     pwm_enable_for_precharge();
     g_state = FSM_STATE_PRECHARGE;
+    return 1u;
+}
+
+static void handle_start(const uart_command_t *cmd)
+{
+    (void)do_start(cmd->raw);
 }
 
 static void handle_stop(const uart_command_t *cmd)
@@ -174,7 +191,7 @@ static void handle_mi(const uart_command_t *cmd)
         return;
     }
 
-    g_pwm_modulation_index = cmd->float_arg;
+    Pwm_SetModulationIndex(cmd->float_arg);
     UART_SendAck(cmd->raw);
 }
 
@@ -196,6 +213,91 @@ static void handle_rescan(const uart_command_t *cmd)
         }
     }
     warn_if_open_loop();
+}
+
+static void emit_pwm_config_line(void)
+{
+    const pwm_config_t *cfg = Pwm_GetConfig();
+    UART_SendPwmConfig(Pwm_ModulatorName(cfg->modulator),
+                       cfg->switching_freq_hz,
+                       Pwm_BridgeName(cfg->bridge_select),
+                       cfg->fundamental_freq_hz,
+                       cfg->modulation_index);
+}
+
+static uint8_t require_idle_for_pwm_config(void)
+{
+    if (g_state != FSM_STATE_IDLE) {
+        UART_SendError("PWM_CONFIG_REQUIRES_IDLE");
+        return 0u;
+    }
+    return 1u;
+}
+
+static void handle_mod(const uart_command_t *cmd)
+{
+    if (!require_idle_for_pwm_config()) return;
+
+    pwm_config_t cfg = *Pwm_GetConfig();
+    cfg.modulator = (modulator_type_t)cmd->mode_arg;
+    if (Pwm_SetConfig(&cfg) == 0u) {
+        UART_SendError("PWM_CONFIG_REJECTED");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_pwm_config_line();
+}
+
+static void handle_bridge(const uart_command_t *cmd)
+{
+    if (!require_idle_for_pwm_config()) return;
+
+    pwm_config_t cfg = *Pwm_GetConfig();
+    cfg.bridge_select = (bridge_select_t)cmd->mode_arg;
+    if (Pwm_SetConfig(&cfg) == 0u) {
+        UART_SendError("PWM_CONFIG_REJECTED");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_pwm_config_line();
+}
+
+static void handle_fsw(const uart_command_t *cmd)
+{
+    if (!require_idle_for_pwm_config()) return;
+
+    uint32_t hz = (uint32_t)cmd->float_arg;
+    if ((hz < PWM_FSW_MIN_HZ) || (hz > PWM_FSW_MAX_HZ)) {
+        UART_SendError("FSW_RANGE_100_TO_20000");
+        return;
+    }
+    pwm_config_t cfg = *Pwm_GetConfig();
+    cfg.switching_freq_hz = hz;
+    if (Pwm_SetConfig(&cfg) == 0u) {
+        UART_SendError("PWM_CONFIG_REJECTED");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_pwm_config_line();
+}
+
+static void handle_ffund(const uart_command_t *cmd)
+{
+    if (!require_idle_for_pwm_config()) return;
+
+    if ((cmd->float_arg < PWM_FUNDAMENTAL_MIN_HZ) ||
+        (cmd->float_arg > PWM_FUNDAMENTAL_MAX_HZ)) {
+        UART_SendError("FFUND_RANGE_10_TO_400");
+        return;
+    }
+    pwm_config_t cfg = *Pwm_GetConfig();
+    cfg.fundamental_freq_hz = cmd->float_arg;
+    if (Pwm_SetConfig(&cfg) == 0u) {
+        UART_SendError("PWM_CONFIG_REJECTED");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_pwm_config_line();
 }
 
 static void handle_command(const uart_command_t *cmd)
@@ -227,6 +329,22 @@ static void handle_command(const uart_command_t *cmd)
         break;
     case UART_CMD_RESCAN:
         handle_rescan(cmd);
+        break;
+    case UART_CMD_MOD:
+        handle_mod(cmd);
+        break;
+    case UART_CMD_BRIDGE:
+        handle_bridge(cmd);
+        break;
+    case UART_CMD_FSW:
+        handle_fsw(cmd);
+        break;
+    case UART_CMD_FFUND:
+        handle_ffund(cmd);
+        break;
+    case UART_CMD_CONFIG:
+        UART_SendAck(cmd->raw);
+        emit_pwm_config_line();
         break;
     case UART_CMD_INVALID:
     default:
@@ -268,11 +386,15 @@ void FSM_Init(void)
 
     g_mode = select_best_mode();
     UART_WriteString("$A,BOOT_SELF_TEST_DONE\r\n");
+    emit_pwm_config_line();
     if (g_mode != MODE_FULL) {
         UART_SendError("MODE_DEMOTED");
     }
     warn_if_open_loop();
     enter_idle();
+
+    g_boot_ms = FSM_Millis();
+    g_auto_start_done = 0u;
 }
 
 void FSM_Run(void)
@@ -285,6 +407,19 @@ void FSM_Run(void)
     }
 
     handle_sensing(now);
+
+    /* Auto-start: if no UART byte has been received within PWM_AUTOSTART_DELAY_MS
+     * of FSM_Init completing, issue our own START so the inverter runs
+     * standalone with the safe defaults from pwm_config.h. Operator presence
+     * (any UART RX byte) cancels auto-start permanently. */
+    if ((g_auto_start_done == 0u) && (g_state == FSM_STATE_IDLE)) {
+        if (UART_ActivitySeen() != 0u) {
+            g_auto_start_done = 1u;
+        } else if ((uint32_t)(now - g_boot_ms) >= PWM_AUTOSTART_DELAY_MS) {
+            g_auto_start_done = 1u;
+            (void)do_start((const char *)0);
+        }
+    }
 
     if ((g_state == FSM_STATE_PRECHARGE) && (g_precharge_done != 0u)) {
         g_state = FSM_STATE_RUN;

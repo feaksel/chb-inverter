@@ -64,9 +64,13 @@ class SimSource(BaseSource):
         elif text == "STATUS":
             reply = "STATUS"
         elif text == "HELP":
-            reply = "START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN"
+            reply = ("START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 "
+                     "RESCAN MOD STAIR|PSC FSW <hz> BRIDGE BOTH|B1|B2 "
+                     "FFUND <hz> CONFIG")
         elif text == "RESCAN":
             reply = self.controller.rescan()
+        elif text == "CONFIG":
+            reply = self.controller.config_summary()
         elif text.startswith("MODE "):
             try:
                 reply = self.controller.set_mode(mode_name_from_id(int(text.split()[1])))
@@ -77,6 +81,20 @@ class SimSource(BaseSource):
                 reply = self.controller.set_modulation_index(float(text.split()[1]))
             except (IndexError, ValueError):
                 reply = "MI_RANGE_0_TO_0_95"
+        elif text.startswith("MOD "):
+            reply = self.controller.set_modulator(text.split(maxsplit=1)[1].strip())
+        elif text.startswith("BRIDGE "):
+            reply = self.controller.set_bridge(text.split(maxsplit=1)[1].strip())
+        elif text.startswith("FSW "):
+            try:
+                reply = self.controller.set_switching_freq(int(float(text.split()[1])))
+            except (IndexError, ValueError):
+                reply = "FSW_RANGE_100_TO_20000"
+        elif text.startswith("FFUND "):
+            try:
+                reply = self.controller.set_fundamental_freq(float(text.split()[1]))
+            except (IndexError, ValueError):
+                reply = "FFUND_RANGE_10_TO_400"
         else:
             reply = "UNKNOWN_COMMAND"
         channel = "SIM-ACK" if reply == text or reply.startswith(("MODE ", "MI ")) else "SIM"

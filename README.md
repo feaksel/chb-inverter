@@ -16,8 +16,9 @@ the supervisory FSM adds sensing, protection, UART control, and telemetry.
 ## Control Flow
 1. System init sets clock, SysTick, LUT, GPIO, timers, sensor GPIO, UART, TIM6,
    NVIC, and the FSM.
-2. TIM1 update interrupt calls `PWM_Update_IRQHandler` and owns the PWM duty
-   content.
+2. TIM1 update interrupt calls `Pwm_TIM1_UpdateHandler` (in
+   [Core/Src/pwm_modulator.c](Core/Src/pwm_modulator.c)) which dispatches
+   to the active modulator (STAIR or PSC) and owns all PWM duty content.
 3. TIM6 runs at 1 kHz and only sets `g_sense_pending`; sensor reads happen in
    the main loop.
 4. The main loop runs `FSM_Run()`, which handles commands, sensing, protection,
@@ -97,9 +98,23 @@ Commands are line-based and terminated by `\n` or `\r\n`.
 | `HELP` | Any | Print command summary |
 | `MI <0.0-0.95>` | IDLE | Override modulation index |
 | `RESCAN` | IDLE, FAULT | Re-run the ADC self-test and re-mark sensors available |
+| `MOD STAIR\|PSC` | IDLE | Pick modulator (STAIR = 500 Hz staircase, PSC = phase-shifted carriers) |
+| `FSW <hz>` | IDLE | Set switching frequency (100..20000 Hz) |
+| `BRIDGE BOTH\|B1\|B2` | IDLE | Single-bridge test mode (inactive bridge freewheels) |
+| `FFUND <hz>` | IDLE | Set fundamental frequency (10..400 Hz) |
+| `CONFIG` | Any | Print the active PWM config as `$C,mod=...,fsw=...,bridge=...,ffund=...,mi=...` |
 
 Accepted commands echo as `$A,<cmd>\r\n`. Rejected commands return
-`$E,<reason>\r\n`.
+`$E,<reason>\r\n`. PWM-config changes additionally emit a fresh `$C,...`
+line so the dashboard log always reflects the live configuration.
+
+**Auto-start.** If no UART byte is received within 3 s after boot, the
+firmware issues its own `START` using the defaults from
+[Core/Inc/pwm_config.h](Core/Inc/pwm_config.h) (`STAIR / 500 Hz / BOTH /
+MI 0.95 / 50 Hz`) and emits `$A,AUTO_START`. Sending any UART byte during
+those 3 s cancels auto-start permanently and the system waits for an
+explicit `START`. This lets the inverter run standalone for demos while
+preserving the explicit-arm behavior whenever an operator is at the keyboard.
 
 ## Telemetry
 Telemetry is emitted at 20 Hz:
@@ -119,13 +134,72 @@ $T,12345,RUN,FULL,0x00,49.87,50.02,3.41,1*7B
 ```
 
 ## Build and Flash
-1. Open the project in STM32CubeIDE 1.18+.
-2. Build the project.
+
+### CubeIDE (normal workflow)
+1. Open the project in STM32CubeIDE 1.17+.
+2. Build the project (`Project → Build All` or hammer icon).
 3. Connect the Nucleo-F303RE over USB.
 4. Run or debug to flash the target.
 
-The CubeIDE project already includes `Core`, so the new files under
-`Core/Src` and `Core/Inc` are picked up by the build.
+The CubeIDE project source paths cover the whole `Core/` and `Drivers/`
+trees, so new files under `Core/Src` and `Core/Inc` are picked up
+automatically by the auto-discovery build.
+
+### Command-line build (CI / verification)
+Uses the same compiler CubeIDE ships, no project import needed:
+
+```
+GCC=/c/ST/STM32CubeIDE_<version>/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.<ver>/tools/bin/arm-none-eabi-gcc.exe
+CFLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb \
+        -DDEBUG -DUSE_HAL_DRIVER -DSTM32F303xE \
+        -ICore/Inc -IDrivers/STM32F3xx_HAL_Driver/Inc/Legacy \
+        -IDrivers/STM32F3xx_HAL_Driver/Inc \
+        -IDrivers/CMSIS/Device/ST/STM32F3xx/Include -IDrivers/CMSIS/Include \
+        -O0 -g3 -Wall -Wextra -ffunction-sections -fdata-sections"
+LDFLAGS="-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb \
+         -TSTM32F303RETX_FLASH.ld -Wl,--gc-sections -static \
+         --specs=nano.specs --specs=nosys.specs -u_printf_float \
+         -Wl,--start-group -lc -lm -Wl,--end-group"
+
+mkdir -p build
+for f in Core/Src/*.c Drivers/STM32F3xx_HAL_Driver/Src/*.c; do
+  "$GCC" $CFLAGS -c "$f" -o "build/$(basename "$f" .c).o"
+done
+"$GCC" $CFLAGS -c Core/Startup/startup_stm32f303retx.s -o build/startup.o
+"$GCC" $LDFLAGS build/*.o -o build/5levelchb.elf
+# Optional: generate flashable formats
+"${GCC%gcc.exe}objcopy.exe" -O binary build/5levelchb.elf build/5levelchb.bin
+"${GCC%gcc.exe}objcopy.exe" -O ihex   build/5levelchb.elf build/5levelchb.hex
+"${GCC%gcc.exe}size.exe"               build/5levelchb.elf
+```
+
+Expected output for the current branch: ~36 KB Flash, ~4 KB RAM, zero
+warnings under `-Wall -Wextra -Wshadow -Wundef`.
+
+### Flashing without CubeIDE
+- **Drag and drop:** plug in the Nucleo, a USB drive named `NODE_F303RE`
+  appears, copy `build/5levelchb.bin` onto it. ST-LINK does the rest.
+- **STM32CubeProgrammer CLI:**
+  `STM32_Programmer_CLI.exe -c port=SWD -w build/5levelchb.hex -rst`
+
+## Dashboard tests
+The dashboard parser and simulator have unit tests that do **not** require
+PySide6, pyserial, or pyqtgraph and run in under a second:
+
+```
+cd dashboard
+py -3 -m unittest discover tests -v
+```
+
+Current branch ships 19 tests covering the NMEA parser, fault encoding,
+all FSM states/modes, the scenario simulator, and the new PWM-config
+setters (modulator / FSW / bridge / fundamental frequency).
+
+## Hardware bringup
+A separate phase-by-phase bench procedure with what-to-expect at each
+stage, the UART commands to send, the scope captures to take, and a
+troubleshooting tree lives in [HARDWARE_BRINGUP.md](HARDWARE_BRINGUP.md).
+Read that before applying any DC bus voltage.
 
 ## Notes and Safety
 - This project drives power stages. Use proper gate drivers, isolation, and

@@ -1,104 +1,17 @@
 #include "stm32f3xx.h"
 #include "fsm.h"
+#include "pwm_modulator.h"
 #include "sensing.h"
 #include "spi_mcp3201.h"
 #include "uart_telem.h"
-#include <math.h>
 #include <stdint.h>
 
-#define PI_F 3.14159265358979323846f
-
-#define SINE_FREQ 50.0f
-#define PWM_FREQ_HZ 500u
-#define ISR_RATE_HZ ((float)PWM_FREQ_HZ)
-#define SINE_SAMPLES 256
-#define MODULATION_INDEX 0.95f
-#define BOOTSTRAP_PRECHARGE_MS 6u
-
 #define TIMER_CLK_HZ 64000000u
-#define PWM_PERIOD ((TIMER_CLK_HZ / (PWM_FREQ_HZ * 2u)) - 1u)
-#define PWM_PRESCALER 0
-#define DEADTIME_US 2u
-/* TIM1 DTG=0x80 at 64MHz gives 128*tDTS = 2.0us dead-time. */
-#define TIM1_DTG_2US_AT_64MHZ 0x80u
-#define PRECHARGE_TICKS ((uint32_t)((((uint64_t)BOOTSTRAP_PRECHARGE_MS) * PWM_FREQ_HZ + 999u) / 1000u))
-
-#define FIVE_LEVEL_ENABLE 1u
-#define FIVE_LEVEL_T1 0.2f
-#define FIVE_LEVEL_T2 0.6f
-/* Build guide v3.1 section 7.4 mandates max 95% HS duty so the LS gets >=5%
- * on-time per period to refresh the bootstrap cap through UF4007 + 10 uF. The
- * LOW clamp constrains the opposite leg whose LS is already on ~99% of the
- * period, so the bootstrap-refresh rule does not bind it. */
-#define DUTY_LOW_CLAMP 0.01f
-#define DUTY_HIGH_CLAMP 0.95f
-
-static float sine_lut[SINE_SAMPLES];
-static float phase_accumulator = 0.0f;
-static float phase_increment = (SINE_FREQ / ISR_RATE_HZ) * SINE_SAMPLES;
-
-/* Shared with the FSM and TIM1 update ISR. They are volatile because the FSM
- * resets them from the superloop while the ISR advances or observes them. */
-volatile uint32_t g_precharge_ticks = 0u;
-volatile uint8_t g_precharge_done = 0u;
-volatile uint8_t g_pwm_precharge_armed = 0u;
-volatile int8_t g_pwm_last_level = 0;
-volatile float g_pwm_modulation_index = MODULATION_INDEX;
 
 static void SystemClock_Config(void);
-static void Generate_Sine_LUT(void);
 static void GPIO_Config(void);
-static void TIM1_Config(void);
-static void TIM8_Config(void);
 static void NVIC_Config(void);
 static void System_Init(void);
-static float clamp_f(float value, float min_val, float max_val);
-static int8_t quantize_5level(float ref);
-static void bridge_level_to_duty(int8_t level, float *duty_leg_a, float *duty_leg_b);
-
-static float clamp_f(float value, float min_val, float max_val)
-{
-    if (value < min_val) {
-        return min_val;
-    }
-    if (value > max_val) {
-        return max_val;
-    }
-    return value;
-}
-
-static int8_t quantize_5level(float ref)
-{
-    if (ref >= FIVE_LEVEL_T2) {
-        return 2;
-    }
-    if (ref >= FIVE_LEVEL_T1) {
-        return 1;
-    }
-    if (ref <= -FIVE_LEVEL_T2) {
-        return -2;
-    }
-    if (ref <= -FIVE_LEVEL_T1) {
-        return -1;
-    }
-    return 0;
-}
-
-static void bridge_level_to_duty(int8_t level, float *duty_leg_a, float *duty_leg_b)
-{
-    if (level > 0) {
-        *duty_leg_a = DUTY_HIGH_CLAMP;
-        *duty_leg_b = DUTY_LOW_CLAMP;
-        return;
-    }
-    if (level < 0) {
-        *duty_leg_a = DUTY_LOW_CLAMP;
-        *duty_leg_b = DUTY_HIGH_CLAMP;
-        return;
-    }
-    *duty_leg_a = DUTY_LOW_CLAMP;
-    *duty_leg_b = DUTY_LOW_CLAMP;
-}
 
 static void SystemClock_Config(void)
 {
@@ -127,19 +40,13 @@ static void SystemClock_Config(void)
     }
 }
 
-static void Generate_Sine_LUT(void)
-{
-    for (uint32_t i = 0; i < SINE_SAMPLES; i++) {
-        sine_lut[i] = sinf(2.0f * PI_F * (float)i / (float)SINE_SAMPLES);
-    }
-}
-
-
 static void GPIO_Config(void)
 {
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN;
 
-    /* TIM1 on GPIOA: PA8/PA7/PA9/PA12 (CH1/CH1N/CH2/CH2N). */
+    /* TIM1 on GPIOA: PA8/PA7/PA9/PA12 (CH1/CH1N/CH2/CH2N).
+     * Build guide v3.1 lists PA10 for CH2N but PA10 has no TIM1_CH2N
+     * alternate function on F303RE; PA12 is the correct pin. */
     GPIOA->MODER &= ~(GPIO_MODER_MODER7 | GPIO_MODER_MODER8 | GPIO_MODER_MODER9 |
                       GPIO_MODER_MODER12);
     GPIOA->MODER |= GPIO_MODER_MODER7_1 | GPIO_MODER_MODER8_1 | GPIO_MODER_MODER9_1 |
@@ -151,7 +58,10 @@ static void GPIO_Config(void)
     GPIOA->AFR[1] |= (0x6u << ((8 - 8) * 4)) | (0x6u << ((9 - 8) * 4)) |
                      (0x6u << ((12 - 8) * 4));
 
-    /* TIM8 on GPIOB: PB6/PB3/PB8/PB0 (CH1/CH1N/CH2/CH2N). */
+    /* TIM8 on GPIOB: PB6/PB3/PB8/PB0 (CH1/CH1N/CH2/CH2N).
+     * Build guide v3.1 lists PC6-PC9 but only PC6 actually maps to TIM8_CH1;
+     * PC7/PC8/PC9 map to CH2/CH3/CH4 not CH1N/CH2/CH2N. PB6/PB3/PB8/PB0 is
+     * the correct combination for TIM8 complementary pairs on this package. */
     GPIOB->MODER &= ~(GPIO_MODER_MODER0 | GPIO_MODER_MODER3 | GPIO_MODER_MODER6 |
                       GPIO_MODER_MODER8);
     GPIOB->MODER |= GPIO_MODER_MODER0_1 | GPIO_MODER_MODER3_1 | GPIO_MODER_MODER6_1 |
@@ -182,79 +92,6 @@ static void GPIO_Config(void)
                       GPIO_OSPEEDER_OSPEEDR6_0 | GPIO_OSPEEDER_OSPEEDR8_0;
 }
 
-static void TIM1_Config(void)
-{
-    RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;
-
-    TIM1->CR1 = 0u;
-    TIM1->CR2 = 0u;
-    TIM1->SMCR = 0u;
-    TIM1->DIER = 0u;
-    TIM1->CCMR1 = 0u;
-    TIM1->CCER = 0u;
-    TIM1->BDTR = 0u;
-
-    TIM1->PSC = PWM_PRESCALER;
-    TIM1->ARR = PWM_PERIOD;
-    TIM1->RCR = 1u;
-    TIM1->CCR1 = PWM_PERIOD / 2u;
-    TIM1->CCR2 = PWM_PERIOD / 2u;
-
-    TIM1->CR1 |= TIM_CR1_ARPE | TIM_CR1_CMS_0 | TIM_CR1_URS;
-
-    TIM1->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_OC2M);
-    TIM1->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;
-    TIM1->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-    TIM1->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC2PE;
-
-    TIM1->CCER = TIM_CCER_CC1E | TIM_CCER_CC1NE |
-                 TIM_CCER_CC2E | TIM_CCER_CC2NE;
-
-    /* 2us dead-time for complementary outputs (configured for 64MHz timer clock). */
-    TIM1->BDTR = (TIM1_DTG_2US_AT_64MHZ << TIM_BDTR_DTG_Pos) | TIM_BDTR_OSSR | TIM_BDTR_OSSI;
-
-    TIM1->EGR |= TIM_EGR_UG;
-    TIM1->SR = 0u;
-    TIM1->DIER = TIM_DIER_UIE;
-    TIM1->CR1 |= TIM_CR1_CEN;
-}
-
-static void TIM8_Config(void)
-{
-    RCC->APB2ENR |= RCC_APB2ENR_TIM8EN;
-
-    TIM8->CR1 = 0u;
-    TIM8->CR2 = 0u;
-    TIM8->SMCR = 0u;
-    TIM8->DIER = 0u;
-    TIM8->CCMR1 = 0u;
-    TIM8->CCER = 0u;
-    TIM8->BDTR = 0u;
-
-    TIM8->PSC = PWM_PRESCALER;
-    TIM8->ARR = PWM_PERIOD;
-    TIM8->RCR = 1u;
-    TIM8->CCR1 = PWM_PERIOD / 2u;
-    TIM8->CCR2 = PWM_PERIOD / 2u;
-
-    TIM8->CR1 |= TIM_CR1_ARPE | TIM_CR1_CMS_0 | TIM_CR1_URS;
-
-    TIM8->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_OC2M);
-    TIM8->CCMR1 |= TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;
-    TIM8->CCMR1 |= TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-    TIM8->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC2PE;
-
-    TIM8->CCER = TIM_CCER_CC1E | TIM_CCER_CC1NE |
-                 TIM_CCER_CC2E | TIM_CCER_CC2NE;
-
-    /* 2us dead-time for complementary outputs (configured for 64MHz timer clock). */
-    TIM8->BDTR = (TIM1_DTG_2US_AT_64MHZ << TIM_BDTR_DTG_Pos) | TIM_BDTR_OSSR | TIM_BDTR_OSSI;
-
-    TIM8->EGR |= TIM_EGR_UG;
-    TIM8->SR = 0u;
-    TIM8->CR1 |= TIM_CR1_CEN;
-}
-
 static void NVIC_Config(void)
 {
     NVIC_SetPriority(TIM1_UP_TIM16_IRQn, 0);
@@ -266,10 +103,8 @@ static void System_Init(void)
     SystemClock_Config();
     (void)SysTick_Config(TIMER_CLK_HZ / 1000u);
     NVIC_SetPriority(SysTick_IRQn, 15u);
-    Generate_Sine_LUT();
     GPIO_Config();
-    TIM1_Config();
-    TIM8_Config();
+    Pwm_Init();
     SPI_MCP3201_Init();
     UART_Init();
     Sensing_Init();
@@ -285,87 +120,3 @@ int main(void)
         FSM_Run();
     }
 }
-
-void PWM_Update_IRQHandler(void)
-{
-    if ((TIM1->SR & TIM_SR_UIF) == 0) {
-        return;
-    }
-
-    TIM1->SR &= ~TIM_SR_UIF;
-
-    phase_accumulator += phase_increment;
-    if (phase_accumulator >= (float)SINE_SAMPLES) {
-        phase_accumulator -= (float)SINE_SAMPLES;
-    }
-
-    uint32_t sine_index = (uint32_t)phase_accumulator;
-    float sine_value = g_pwm_modulation_index * sine_lut[sine_index];
-
-    if (g_pwm_precharge_armed == 0u) {
-        g_precharge_ticks = 0u;
-        g_precharge_done = 0u;
-        return;
-    }
-
-    /* Bootstrap precharge: force complementary outputs (low-sides) ON briefly. */
-    if (g_precharge_done == 0u) {
-        TIM1->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC2E);
-        TIM1->CCER |= (TIM_CCER_CC1NE | TIM_CCER_CC2NE);
-
-        TIM8->CCER &= ~(TIM_CCER_CC1E | TIM_CCER_CC2E);
-        TIM8->CCER |= (TIM_CCER_CC1NE | TIM_CCER_CC2NE);
-
-        TIM1->CCR1 = 0;
-        TIM1->CCR2 = 0;
-        TIM8->CCR1 = 0;
-        TIM8->CCR2 = 0;
-
-        g_precharge_ticks++;
-        if (g_precharge_ticks < PRECHARGE_TICKS) {
-            return;
-        }
-
-        TIM1->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E);
-        TIM8->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E);
-        g_precharge_done = 1u;
-    }
-
-    float ref = clamp_f(sine_value, -1.0f, 1.0f);
-    int8_t level = quantize_5level(ref);
-    g_pwm_last_level = level;
-
-    int8_t bridge1 = 0;
-    int8_t bridge2 = 0;
-
-    if (level >= 2) {
-        bridge1 = 1;
-        bridge2 = 1;
-    } else if (level == 1) {
-        bridge1 = 1;
-        bridge2 = 0;
-    } else if (level == 0) {
-        bridge1 = 0;
-        bridge2 = 0;
-    } else if (level == -1) {
-        bridge1 = -1;
-        bridge2 = 0;
-    } else {
-        bridge1 = -1;
-        bridge2 = -1;
-    }
-
-    float duty1_leg_a = DUTY_LOW_CLAMP;
-    float duty1_leg_b = DUTY_LOW_CLAMP;
-    float duty2_leg_a = DUTY_LOW_CLAMP;
-    float duty2_leg_b = DUTY_LOW_CLAMP;
-
-    bridge_level_to_duty(bridge1, &duty1_leg_a, &duty1_leg_b);
-    bridge_level_to_duty(bridge2, &duty2_leg_a, &duty2_leg_b);
-
-    TIM1->CCR1 = (uint32_t)(duty1_leg_a * (float)PWM_PERIOD);
-    TIM1->CCR2 = (uint32_t)(duty1_leg_b * (float)PWM_PERIOD);
-    TIM8->CCR1 = (uint32_t)(duty2_leg_a * (float)PWM_PERIOD);
-    TIM8->CCR2 = (uint32_t)(duty2_leg_b * (float)PWM_PERIOD);
-}
-

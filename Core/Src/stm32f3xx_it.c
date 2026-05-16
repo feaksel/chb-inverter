@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "fsm.h"
+#include "pwm_modulator.h"
 #include "sensing.h"
 #include "uart_telem.h"
 /* USER CODE END Includes */
@@ -208,10 +209,9 @@ void SysTick_Handler(void)
 void TIM1_UP_TIM16_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM1_UP_TIM16_IRQn 0 */
-  extern void PWM_Update_IRQHandler(void);
 
   /* USER CODE END TIM1_UP_TIM16_IRQn 0 */
-  PWM_Update_IRQHandler();
+  Pwm_TIM1_UpdateHandler();
   /* USER CODE BEGIN TIM1_UP_TIM16_IRQn 1 */
 
   /* USER CODE END TIM1_UP_TIM16_IRQn 1 */

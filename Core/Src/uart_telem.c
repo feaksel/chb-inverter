@@ -1,5 +1,6 @@
 #include "uart_telem.h"
 #include "protection.h"
+#include "pwm_modulator.h"
 #include <string.h>
 
 #define UART_TX_BUFFER_SIZE 512u
@@ -13,6 +14,7 @@ static volatile char g_rx_line[UART_RX_LINE_SIZE];
 static volatile uint8_t g_rx_len = 0u;
 static volatile uint8_t g_rx_ready = 0u;
 static volatile char g_rx_ready_line[UART_RX_LINE_SIZE];
+static volatile uint8_t g_uart_activity_seen = 0u;
 
 static inline uint32_t pin_mask(uint32_t pin)
 {
@@ -215,6 +217,7 @@ void UART_USART2_IRQHandler(void)
 
     if ((isr & USART_ISR_RXNE) != 0u) {
         char c = (char)(USART2->RDR & 0xFFu);
+        g_uart_activity_seen = 1u;
 
         if ((c == '\n') || (c == '\r')) {
             if ((g_rx_len > 0u) && (g_rx_ready == 0u)) {
@@ -317,6 +320,8 @@ static void parse_command(uart_command_t *cmd, const char *line)
         cmd->type = UART_CMD_HELP;
     } else if (strcmp(line, "RESCAN") == 0) {
         cmd->type = UART_CMD_RESCAN;
+    } else if (strcmp(line, "CONFIG") == 0) {
+        cmd->type = UART_CMD_CONFIG;
     } else if (strncmp(line, "MODE ", 5u) == 0) {
         if (parse_mode_arg(&line[5], &cmd->mode_arg) != 0u) {
             cmd->type = UART_CMD_MODE;
@@ -324,6 +329,26 @@ static void parse_command(uart_command_t *cmd, const char *line)
     } else if (strncmp(line, "MI ", 3u) == 0) {
         if (parse_mi_arg(&line[3], &cmd->float_arg) != 0u) {
             cmd->type = UART_CMD_MI;
+        }
+    } else if (strncmp(line, "MOD ", 4u) == 0) {
+        modulator_type_t m;
+        if (Pwm_ParseModulator(&line[4], &m) != 0u) {
+            cmd->mode_arg = (uint8_t)m;
+            cmd->type = UART_CMD_MOD;
+        }
+    } else if (strncmp(line, "BRIDGE ", 7u) == 0) {
+        bridge_select_t b;
+        if (Pwm_ParseBridgeSelect(&line[7], &b) != 0u) {
+            cmd->mode_arg = (uint8_t)b;
+            cmd->type = UART_CMD_BRIDGE;
+        }
+    } else if (strncmp(line, "FSW ", 4u) == 0) {
+        if (parse_mi_arg(&line[4], &cmd->float_arg) != 0u) {
+            cmd->type = UART_CMD_FSW;
+        }
+    } else if (strncmp(line, "FFUND ", 6u) == 0) {
+        if (parse_mi_arg(&line[6], &cmd->float_arg) != 0u) {
+            cmd->type = UART_CMD_FFUND;
         }
     }
 }
@@ -387,7 +412,36 @@ void UART_SendFault(uint8_t faults)
 
 void UART_SendHelp(void)
 {
-    UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN\r\n");
+    UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN "
+                     "MOD STAIR|PSC FSW <hz> BRIDGE BOTH|B1|B2 FFUND <hz> CONFIG\r\n");
+}
+
+uint8_t UART_ActivitySeen(void)
+{
+    return g_uart_activity_seen;
+}
+
+void UART_SendPwmConfig(const char *modulator_name,
+                        uint32_t switching_freq_hz,
+                        const char *bridge_name,
+                        float fundamental_freq_hz,
+                        float modulation_index)
+{
+    char line[140];
+    uint32_t pos = 0u;
+
+    append_str(line, &pos, sizeof(line), "$C,mod=");
+    append_str(line, &pos, sizeof(line), modulator_name);
+    append_str(line, &pos, sizeof(line), ",fsw=");
+    append_u32(line, &pos, sizeof(line), switching_freq_hz);
+    append_str(line, &pos, sizeof(line), ",bridge=");
+    append_str(line, &pos, sizeof(line), bridge_name);
+    append_str(line, &pos, sizeof(line), ",ffund=");
+    append_fixed2(line, &pos, sizeof(line), fundamental_freq_hz);
+    append_str(line, &pos, sizeof(line), ",mi=");
+    append_fixed2(line, &pos, sizeof(line), modulation_index);
+    append_str(line, &pos, sizeof(line), "\r\n");
+    UART_WriteString(line);
 }
 
 const char *UART_StateName(fsm_state_t state)

@@ -114,6 +114,51 @@ class SimulatorTests(unittest.TestCase):
         self.assertEqual(idle.mode, "DC1")
         self.assertIsNone(idle.vdc2)
 
+    def test_pwm_config_defaults_and_setters(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.modulator, "STAIR")
+        self.assertEqual(sim.switching_freq_hz, 500)
+        self.assertEqual(sim.bridge_select, "BOTH")
+        self.assertAlmostEqual(sim.fundamental_freq_hz, 50.0)
+
+        self.assertEqual(sim.set_modulator("PSC"), "MOD PSC")
+        self.assertEqual(sim.modulator, "PSC")
+        self.assertEqual(sim.set_bridge("B1"), "BRIDGE B1")
+        self.assertEqual(sim.bridge_select, "B1")
+        self.assertEqual(sim.set_switching_freq(5000), "FSW 5000")
+        self.assertEqual(sim.switching_freq_hz, 5000)
+        self.assertEqual(sim.set_fundamental_freq(60.0), "FFUND 60.00")
+        self.assertAlmostEqual(sim.fundamental_freq_hz, 60.0)
+
+    def test_pwm_config_rejects_out_of_range(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.set_modulator("BOGUS"), "PWM_CONFIG_REJECTED")
+        self.assertEqual(sim.set_bridge("X"), "PWM_CONFIG_REJECTED")
+        self.assertEqual(sim.set_switching_freq(50), "FSW_RANGE_100_TO_20000")
+        self.assertEqual(sim.set_switching_freq(30000), "FSW_RANGE_100_TO_20000")
+        self.assertEqual(sim.set_fundamental_freq(5.0), "FFUND_RANGE_10_TO_400")
+
+    def test_pwm_config_requires_idle(self) -> None:
+        sim = SimController()
+        sim.start()
+        sim.step(50)
+        self.assertEqual(sim.state, "PRECHARGE")
+        self.assertEqual(sim.set_modulator("PSC"), "PWM_CONFIG_REQUIRES_IDLE")
+        self.assertEqual(sim.set_switching_freq(5000), "PWM_CONFIG_REQUIRES_IDLE")
+        self.assertEqual(sim.set_bridge("B1"), "PWM_CONFIG_REQUIRES_IDLE")
+        self.assertEqual(sim.set_fundamental_freq(60.0), "PWM_CONFIG_REQUIRES_IDLE")
+
+    def test_config_summary_format(self) -> None:
+        sim = SimController()
+        sim.set_modulator("PSC")
+        sim.set_switching_freq(5000)
+        sim.set_bridge("B2")
+        sim.set_fundamental_freq(60.0)
+        self.assertEqual(
+            sim.config_summary(),
+            "mod=PSC,fsw=5000,bridge=B2,ffund=60.00,mi=0.95",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

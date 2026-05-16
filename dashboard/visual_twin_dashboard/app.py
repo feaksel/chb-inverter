@@ -105,13 +105,13 @@ class DashboardWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
 
         bottom_panel = self._make_bottom_panel()
-        bottom_panel.setMinimumHeight(160)
-        bottom_panel.setMaximumHeight(210)
+        bottom_panel.setMinimumHeight(220)
+        bottom_panel.setMaximumHeight(360)
         main_splitter.addWidget(splitter)
         main_splitter.addWidget(bottom_panel)
         main_splitter.setStretchFactor(0, 4)
         main_splitter.setStretchFactor(1, 1)
-        main_splitter.setSizes([560, 180])
+        main_splitter.setSizes([520, 320])
         layout.addWidget(main_splitter, 1)
         self._apply_style()
 
@@ -262,6 +262,7 @@ class DashboardWindow(QMainWindow):
             ("STATUS", lambda: self._send_command("STATUS")),
             ("HELP", lambda: self._send_command("HELP")),
             ("RESCAN", lambda: self._send_command("RESCAN")),
+            ("CONFIG", lambda: self._send_command("CONFIG")),
         ]
         for label, handler in commands:
             button = QPushButton(label)
@@ -296,7 +297,71 @@ class DashboardWindow(QMainWindow):
         self.normalize_btn.clicked.connect(self._normalize_sim)
         mi_row.addWidget(self.normalize_btn)
         layout.addLayout(mi_row)
+
+        mod_row = QHBoxLayout()
+        self.mod_combo = QComboBox()
+        self.mod_combo.addItems(["STAIR", "PSC"])
+        self.mod_btn = QPushButton("Set Mod")
+        self.mod_btn.clicked.connect(self._send_mod)
+        mod_row.addWidget(QLabel("Modulator"))
+        mod_row.addWidget(self.mod_combo, 1)
+        mod_row.addWidget(self.mod_btn)
+        layout.addLayout(mod_row)
+
+        fsw_row = QHBoxLayout()
+        self.fsw_combo = QComboBox()
+        self.fsw_combo.setEditable(True)
+        self.fsw_combo.addItems(["500", "1000", "2000", "5000", "10000"])
+        self.fsw_combo.setCurrentText("500")
+        self.fsw_btn = QPushButton("Set FSW")
+        self.fsw_btn.clicked.connect(self._send_fsw)
+        fsw_row.addWidget(QLabel("Sw Freq (Hz)"))
+        fsw_row.addWidget(self.fsw_combo, 1)
+        fsw_row.addWidget(self.fsw_btn)
+        layout.addLayout(fsw_row)
+
+        bridge_row = QHBoxLayout()
+        self.bridge_combo = QComboBox()
+        self.bridge_combo.addItems(["BOTH", "B1", "B2"])
+        self.bridge_btn = QPushButton("Set Bridge")
+        self.bridge_btn.clicked.connect(self._send_bridge)
+        bridge_row.addWidget(QLabel("Bridge"))
+        bridge_row.addWidget(self.bridge_combo, 1)
+        bridge_row.addWidget(self.bridge_btn)
+        layout.addLayout(bridge_row)
+
+        ffund_row = QHBoxLayout()
+        self.ffund_spin = QDoubleSpinBox()
+        self.ffund_spin.setRange(10.0, 400.0)
+        self.ffund_spin.setSingleStep(1.0)
+        self.ffund_spin.setDecimals(1)
+        self.ffund_spin.setValue(50.0)
+        self.ffund_btn = QPushButton("Set FFUND")
+        self.ffund_btn.clicked.connect(self._send_ffund)
+        ffund_row.addWidget(QLabel("Fund (Hz)"))
+        ffund_row.addWidget(self.ffund_spin, 1)
+        ffund_row.addWidget(self.ffund_btn)
+        layout.addLayout(ffund_row)
+
         return group
+
+    def _send_mod(self) -> None:
+        self._send_command(f"MOD {self.mod_combo.currentText().strip().upper()}")
+
+    def _send_fsw(self) -> None:
+        text = self.fsw_combo.currentText().strip()
+        try:
+            hz = int(float(text))
+        except ValueError:
+            self._log_event("ERROR", f"Invalid FSW value: {text}")
+            return
+        self._send_command(f"FSW {hz}")
+
+    def _send_bridge(self) -> None:
+        self._send_command(f"BRIDGE {self.bridge_combo.currentText().strip().upper()}")
+
+    def _send_ffund(self) -> None:
+        self._send_command(f"FFUND {self.ffund_spin.value():.2f}")
 
     def _make_scenario_group(self) -> QGroupBox:
         group = QGroupBox("PC-only Fault Scenarios")
