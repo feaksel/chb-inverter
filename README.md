@@ -96,6 +96,7 @@ Commands are line-based and terminated by `\n` or `\r\n`.
 | `STATUS` | Any | Print one human-readable status line |
 | `HELP` | Any | Print command summary |
 | `MI <0.0-0.95>` | IDLE | Override modulation index |
+| `RESCAN` | IDLE, FAULT | Re-run the ADC self-test and re-mark sensors available |
 
 Accepted commands echo as `$A,<cmd>\r\n`. Rejected commands return
 `$E,<reason>\r\n`.

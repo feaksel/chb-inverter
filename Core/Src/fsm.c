@@ -178,6 +178,26 @@ static void handle_mi(const uart_command_t *cmd)
     UART_SendAck(cmd->raw);
 }
 
+static void handle_rescan(const uart_command_t *cmd)
+{
+    if ((g_state != FSM_STATE_IDLE) && (g_state != FSM_STATE_FAULT)) {
+        UART_SendError("RESCAN_REQUIRES_IDLE_OR_FAULT");
+        return;
+    }
+
+    Sensing_SelfTest();
+    UART_SendAck(cmd->raw);
+
+    if (Sensing_ModeSensorsAvailable(g_mode) == 0u) {
+        sensing_mode_t previous = g_mode;
+        g_mode = select_best_mode();
+        if (g_mode != previous) {
+            UART_SendError("MODE_DEMOTED");
+        }
+    }
+    warn_if_open_loop();
+}
+
 static void handle_command(const uart_command_t *cmd)
 {
     switch (cmd->type) {
@@ -204,6 +224,9 @@ static void handle_command(const uart_command_t *cmd)
         break;
     case UART_CMD_MI:
         handle_mi(cmd);
+        break;
+    case UART_CMD_RESCAN:
+        handle_rescan(cmd);
         break;
     case UART_CMD_INVALID:
     default:

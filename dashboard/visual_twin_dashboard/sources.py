@@ -64,7 +64,9 @@ class SimSource(BaseSource):
         elif text == "STATUS":
             reply = "STATUS"
         elif text == "HELP":
-            reply = "START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95"
+            reply = "START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN"
+        elif text == "RESCAN":
+            reply = self.controller.rescan()
         elif text.startswith("MODE "):
             try:
                 reply = self.controller.set_mode(mode_name_from_id(int(text.split()[1])))

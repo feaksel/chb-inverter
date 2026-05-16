@@ -97,6 +97,14 @@ class SimController:
         self.modulation_index = value
         return f"MI {value:.2f}"
 
+    def rescan(self) -> str:
+        if self.state not in ("IDLE", "FAULT"):
+            return "RESCAN_REQUIRES_IDLE_OR_FAULT"
+        if self.scenario_key == "sensor_lost":
+            self.scenario_key = "nominal"
+            self.scenario_started_ms = self.ms
+        return "RESCAN"
+
     def run_scenario(self, key: str) -> str:
         if key not in SCENARIOS:
             raise KeyError(key)

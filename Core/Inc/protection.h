@@ -10,6 +10,11 @@
 #define PROTECTION_OVERCURRENT_A 15.0f
 #define PROTECTION_IMBALANCE_V 10.0f
 
+/* N consecutive sensor scans must agree before a fault trips. At 1 kHz sense
+ * rate this gives a 3 ms debounce, ignoring single-sample noise without losing
+ * fast-trip behavior on real faults. */
+#define PROTECTION_TRIP_COUNT 3u
+
 #define FAULT_NONE 0x00u
 #define FAULT_UV 0x01u
 #define FAULT_OV 0x02u

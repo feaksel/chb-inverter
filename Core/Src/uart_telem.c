@@ -315,6 +315,8 @@ static void parse_command(uart_command_t *cmd, const char *line)
         cmd->type = UART_CMD_STATUS;
     } else if (strcmp(line, "HELP") == 0) {
         cmd->type = UART_CMD_HELP;
+    } else if (strcmp(line, "RESCAN") == 0) {
+        cmd->type = UART_CMD_RESCAN;
     } else if (strncmp(line, "MODE ", 5u) == 0) {
         if (parse_mode_arg(&line[5], &cmd->mode_arg) != 0u) {
             cmd->type = UART_CMD_MODE;
@@ -385,7 +387,7 @@ void UART_SendFault(uint8_t faults)
 
 void UART_SendHelp(void)
 {
-    UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95\r\n");
+    UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN\r\n");
 }
 
 const char *UART_StateName(fsm_state_t state)
@@ -446,11 +448,11 @@ void UART_SendStatus(uint32_t ms,
     append_str(line, &pos, sizeof(line), ",avail=");
     append_hex8(line, &pos, sizeof(line), avail);
     append_str(line, &pos, sizeof(line), ",vdc1=");
-    append_sensor_value(line, &pos, sizeof(line), data->dc1.filtered_value, data->dc1.initialized);
+    append_sensor_value(line, &pos, sizeof(line), data->dc1.filtered_value, data->dc1.available);
     append_str(line, &pos, sizeof(line), ",vdc2=");
-    append_sensor_value(line, &pos, sizeof(line), data->dc2.filtered_value, data->dc2.initialized);
+    append_sensor_value(line, &pos, sizeof(line), data->dc2.filtered_value, data->dc2.available);
     append_str(line, &pos, sizeof(line), ",iout=");
-    append_sensor_value(line, &pos, sizeof(line), data->current.filtered_value, data->current.initialized);
+    append_sensor_value(line, &pos, sizeof(line), data->current.filtered_value, data->current.available);
     append_str(line, &pos, sizeof(line), ",mi=");
     append_fixed2(line, &pos, sizeof(line), modulation_index);
     append_str(line, &pos, sizeof(line), "\r\n");

@@ -14,6 +14,7 @@ typedef enum {
     UART_CMD_STATUS,
     UART_CMD_HELP,
     UART_CMD_MI,
+    UART_CMD_RESCAN,
     UART_CMD_INVALID
 } uart_cmd_type_t;
 

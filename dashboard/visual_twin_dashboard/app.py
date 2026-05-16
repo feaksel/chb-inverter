@@ -261,6 +261,7 @@ class DashboardWindow(QMainWindow):
             ("CLEAR", lambda: self._send_command("CLEAR")),
             ("STATUS", lambda: self._send_command("STATUS")),
             ("HELP", lambda: self._send_command("HELP")),
+            ("RESCAN", lambda: self._send_command("RESCAN")),
         ]
         for label, handler in commands:
             button = QPushButton(label)
