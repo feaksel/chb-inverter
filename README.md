@@ -196,10 +196,21 @@ all FSM states/modes, the scenario simulator, and the new PWM-config
 setters (modulator / FSW / bridge / fundamental frequency).
 
 ## Hardware bringup
-A separate phase-by-phase bench procedure with what-to-expect at each
-stage, the UART commands to send, the scope captures to take, and a
-troubleshooting tree lives in [HARDWARE_BRINGUP.md](HARDWARE_BRINGUP.md).
-Read that before applying any DC bus voltage.
+Two docs cover bench testing:
+
+- **[FIRST_BENCH_SESSION.md](FIRST_BENCH_SESSION.md)** — focused linear
+  walkthrough for your first time on the bench with the new branch.
+  Folds git pull, dashboard setup, flashing, and all three modulator
+  tests (STAIR / STAIR_ALT / PSC) into one continuous procedure with
+  explicit pass/fail checkpoints and TLP250-protection checks at every
+  step. Start here.
+- **[HARDWARE_BRINGUP.md](HARDWARE_BRINGUP.md)** — comprehensive
+  phase-by-phase reference. Build-guide-style coverage of every test
+  phase, what to expect, what the firmware emits on UART, scope
+  captures, troubleshooting trees. Consult when something doesn't
+  match the first-session doc.
+
+Read at least the first one before applying any DC bus voltage.
 
 ## Notes and Safety
 - This project drives power stages. Use proper gate drivers, isolation, and

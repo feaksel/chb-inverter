@@ -146,6 +146,15 @@ class SerialSource(BaseSource):
         self.timer.start()
         self.connection_changed.emit(f"Connected to {port_name}")
         self.event_received.emit("SERIAL", f"Connected {port_name} @ {baudrate}")
+        # Send a STATUS query immediately so the firmware's
+        # UART_ActivitySeen() flips to 1 and the 3 s auto-start path is
+        # cancelled. Without this, opening the dashboard purely to monitor
+        # would still let the inverter auto-start uncontrolled.
+        try:
+            self.port.write(b"STATUS\r\n")
+            self.event_received.emit("TX", "STATUS (auto-cancel)")
+        except serial.SerialException as exc:
+            self.event_received.emit("ERROR", str(exc))
         return True
 
     def disconnect_port(self) -> None:
@@ -192,6 +201,18 @@ class SerialSource(BaseSource):
 
     def _handle_line(self, line: str) -> None:
         parsed = parse_line(line, source="serial")
+
+        # Re-arm auto-start cancellation if we see a fresh boot. The MCU's
+        # UART_ActivitySeen flag is cleared on every reset, so without
+        # re-sending something here the next 3-second window would let
+        # auto-start fire even though the dashboard is connected.
+        if parsed.kind == "ack" and "BOOT_SELF_TEST_DONE" in (parsed.message or ""):
+            try:
+                self.port.write(b"STATUS\r\n")
+                self.event_received.emit("TX", "STATUS (auto-cancel post-reset)")
+            except serial.SerialException as exc:
+                self.event_received.emit("ERROR", str(exc))
+
         if parsed.kind == "telemetry" and parsed.frame is not None:
             self.frame_received.emit(parsed.frame)
             if not parsed.checksum_valid:

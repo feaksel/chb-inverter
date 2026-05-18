@@ -18,6 +18,39 @@ Adds a second modulator alongside the bench-validated STAIR, makes the PWM
 runtime-configurable from UART/dashboard, and adds an auto-start path so
 the system runs standalone with safe defaults when no UART is connected.
 
+### Dashboard auto-cancels firmware auto-start while connected
+User asked: "if no UART, only the dashboard isn't connected, right?"
+Almost — but the original implementation had an edge case where the
+dashboard could be connected purely for monitoring and the firmware's
+3 s auto-start would still fire because nothing was actually sending
+bytes to USART2 RX.
+
+Fixed by having the dashboard's `SerialSource` automatically transmit
+`STATUS` in two places:
+- **On serial port connect** (`SerialSource.connect_port`): one-shot
+  query the moment the COM port opens. Flips `UART_ActivitySeen()` on
+  the MCU before the 3 s window can elapse.
+- **On every detected `$A,BOOT_SELF_TEST_DONE`** in the RX stream
+  (`SerialSource._handle_line`): re-sends `STATUS` so that resetting
+  the Nucleo while the dashboard is connected does NOT let auto-start
+  fire on the new boot cycle. (Without this, the MCU's
+  `UART_ActivitySeen()` flag is cleared by the reset and a fresh 3 s
+  window would start.)
+
+Result — the firmware's standalone auto-start path now behaves exactly
+as the user wants:
+- USB unplugged → auto-start fires (standalone deployment).
+- USB plugged, no PC software listening → auto-start fires (USB just
+  powering the Nucleo).
+- Dashboard connected → auto-start cancelled, full operator control,
+  resilient across Nucleo resets.
+- PuTTY / Tera Term connected but operator idle → auto-start fires
+  after 3 s (typing any character cancels).
+
+The TX log shows `STATUS (auto-cancel)` and
+`STATUS (auto-cancel post-reset)` events so the cancellation is
+visible in the audit trail.
+
 ### Updates after user feedback on STAIR being "fake PWM"
 User correctly identified that the OLD STAIR modulator is **not real PWM** —
 it's static level selection where each of 5 levels is held for 2 ms with

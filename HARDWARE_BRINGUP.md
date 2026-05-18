@@ -10,23 +10,278 @@ when something is off.
 confidence for the next. Skipping risks damaging components that took
 weeks to source.
 
+> 📘 **Looking for a faster, focused walkthrough?**
+> [FIRST_BENCH_SESSION.md](FIRST_BENCH_SESSION.md) is a linear single-session
+> procedure that folds together the relevant bits of this doc (Step 0,
+> Phases 2–7b, Phase 8) and adds explicit TLP250-protection checks.
+> Use it the first time you bench-test the new branch. Come back here
+> for the comprehensive reference and troubleshooting trees.
+
+---
+
+## Step 0 — Getting the firmware onto the board
+
+This is the end-to-end procedure from "the code lives in the
+`pwm-rewrite-configurable` branch on the dev PC" to "the firmware is
+running on the Nucleo and the dashboard is showing telemetry."
+
+If everything is already on the bench PC and flashed, skip to
+[Pre-bringup checklist](#pre-bringup-checklist).
+
+### 0.A — Commit the branch (on the dev PC, if not yet committed)
+
+Check current state:
+```powershell
+cd C:\Users\furka\Projects\5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE
+git status
+git branch --show-current     # must print: pwm-rewrite-configurable
+```
+
+If `git status` shows modified or untracked files, commit them:
+```powershell
+git add -A
+git commit -m "PSC-PWM rewrite: configurable modulator, runtime config, auto-start, STAIR_ALT"
+```
+
+Push to remote so the bench PC can pull:
+```powershell
+git push -u origin pwm-rewrite-configurable
+```
+
+After the first push, confirm the branch is visible on GitHub
+(or whatever remote you use).
+
+### 0.B — Clone (or pull) onto the bench PC
+
+**Fresh bench PC, empty folder, no git history yet:**
+```powershell
+# Make a Projects folder if you don't have one yet
+mkdir C:\Projects -ErrorAction SilentlyContinue
+cd C:\Projects
+
+# Clone your fork (the one we pushed to in 0.A)
+git clone https://github.com/feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE.git
+cd 5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE
+
+# Default branch on clone is main; switch to the working branch
+git checkout pwm-rewrite-configurable
+```
+
+GitHub will prompt for credentials on the first clone — use a Personal
+Access Token (Settings → Developer settings → Personal access tokens →
+Tokens (classic) → Generate new, scope `repo`). Paste the token as the
+password; Windows Credential Manager remembers it after that.
+
+If git isn't installed: get it from
+[git-scm.com/download/win](https://git-scm.com/download/win),
+accept defaults, restart PowerShell.
+
+**Bench PC already has the repo from a previous session:**
+```powershell
+cd C:\Projects\5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE
+git fetch
+git checkout pwm-rewrite-configurable
+git pull
+```
+
+**Verify you got the right branch and the latest code:**
+```powershell
+git log --oneline -3
+git branch --show-current     # must print: pwm-rewrite-configurable
+```
+
+The newest commit message should match what you pushed in 0.A.
+
+### 0.C — Build in STM32CubeIDE
+
+> 💡 **Recommended ordering of the remaining sub-steps:** 0.C build →
+> 0.E install/launch dashboard and connect to COM port → 0.D flash. The
+> reason is the auto-start race explained at the top of 0.D — having the
+> dashboard already connected before the flash completes guarantees
+> auto-start gets cancelled on the post-flash reset.
+
+1. Launch **STM32CubeIDE**.
+2. Pick a workspace folder when prompted (any empty folder — the workspace
+   is just project metadata, not the source).
+3. **File → Open Projects from File System...**
+4. Click **Directory...** and browse to the cloned repo root (the folder
+   containing `.project` and `5levelchb.ioc`).
+5. Click **Finish**. CubeIDE imports the project and starts indexing.
+6. Wait for indexing to finish (~30-60 s — watch progress bar bottom
+   right; it says things like *"C/C++ Indexer"*).
+7. **Project → Build All** (or `Ctrl+B`, or click the hammer icon in
+   the toolbar).
+8. When the build finishes the Console panel at the bottom should show:
+   ```
+   arm-none-eabi-size  Debug/5levelchb.elf
+      text    data     bss     dec     hex filename
+     36660     468    3668   40796    9f5c Debug/5levelchb.elf
+
+   Finished building target: 5levelchb.elf
+   ```
+9. Build artifacts land in `Debug/`:
+   - `5levelchb.elf` — for CubeIDE flashing / debugging
+   - `5levelchb.bin` — for drag-and-drop flashing
+   - `5levelchb.hex` — for STM32CubeProgrammer
+   - `5levelchb.map` — link map
+
+Build errors? Read the first error in the Console panel and fix.
+Common ones:
+- *"Cannot resolve include ... arm-none-eabi-gcc"* — CubeIDE toolchain
+  not installed. **Help → Check for Updates** and install missing pieces.
+- *"undefined reference to ..."* — a `.c` file isn't being picked up.
+  Right-click the file in Project Explorer → **Resource Configurations
+  → Reset to Default**.
+
+### 0.D — Flash the Nucleo
+
+> ⚠️ **Critical ordering: open the dashboard and connect to the COM port
+> BEFORE you flash.** The firmware auto-starts 3 seconds after every
+> reset (including the reset CubeIDE issues at the end of programming).
+> If the dashboard isn't connected and listening, you'll race the
+> auto-start countdown. The dashboard auto-cancels by sending `STATUS`
+> the moment it sees the boot message in the RX stream, so as long as
+> it's already connected when the flash completes, you're safe.
+>
+> The ST-LINK exposes two independent USB endpoints — SWD (used by
+> CubeIDE for programming) and VCP (used by the dashboard for UART) —
+> so the two can run simultaneously without conflict.
+>
+> For Phase 0–1 (no power stages connected) auto-start firing is
+> harmless — the MOSFET gates are unwired. From Phase 2 onward (gate
+> drivers powered) this matters. **Make "dashboard first, then flash"
+> a habit from the very first flash so you don't forget later.**
+
+Pick **one** of these three methods. CubeIDE method is easiest if you
+already have it open.
+
+**Method 1 — CubeIDE Run/Debug button (recommended on first flash):**
+1. Plug the Nucleo-F303RE into the PC via USB (the larger USB connector
+   on the ST-LINK side, not the user USB).
+2. Wait ~10 s for ST-LINK enumeration. The red LED on the ST-LINK side
+   stops blinking and turns solid (or off, depending on board rev).
+3. In CubeIDE: **Run → Run As → STM32 C/C++ Application**, or click the
+   green play arrow in the toolbar.
+4. First run only: CubeIDE pops up a "Debug Configurations" dialog.
+   Accept defaults, click **OK**.
+5. CubeIDE flashes the device. Status bar shows:
+   ```
+   Erasing flash... Programming... Verifying... Programming complete.
+   ```
+6. Nucleo resets and starts running the new firmware.
+
+**Method 2 — Drag and drop (no CubeIDE needed after build):**
+1. Plug Nucleo in via USB.
+2. A removable drive named **NODE_F303RE** appears in File Explorer
+   (one of the ST-LINK USB drives).
+3. Open Explorer, drag `Debug\5levelchb.bin` onto the `NODE_F303RE`
+   drive.
+4. The drive's LED flickers, drive disconnects briefly (~3-5 s), then
+   reappears. Flash complete.
+5. Nucleo auto-resets and starts running.
+
+**Method 3 — STM32CubeProgrammer CLI:**
+```powershell
+& "C:\Program Files\STMicroelectronics\STM32Cube\STM32CubeProgrammer\bin\STM32_Programmer_CLI.exe" `
+    -c port=SWD `
+    -w Debug\5levelchb.hex `
+    -rst
+```
+
+### 0.E — Set up the dashboard
+
+First-time setup (skip if `dashboard\.venv` already exists):
+```powershell
+cd C:\Users\furka\Projects\5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE
+py -3 -m venv dashboard\.venv
+dashboard\.venv\Scripts\python -m pip install --upgrade pip
+dashboard\.venv\Scripts\python -m pip install -r dashboard\requirements.txt
+```
+
+Every time after that:
+```powershell
+dashboard\.venv\Scripts\python dashboard\run_dashboard.py
+```
+
+In the dashboard window:
+1. **Source** dropdown (top-left) → select **"Live serial"**.
+2. Click **Refresh** next to the COM dropdown — your ST-LINK VCP port
+   appears (typically `COMx` where x is some number; check Windows
+   Device Manager → Ports if unsure).
+3. Select that port, click **Connect**.
+4. Status label changes to **"Connected to COMx"**.
+
+If the COM dropdown shows "No ports": the ST-LINK USB driver isn't
+installed. Download **ST-LINK USB driver** from [st.com](https://www.st.com/)
+and reboot.
+
+### 0.F — First boot verification (no power stages)
+
+1. **Verify auto-start is cancelled by the dashboard.** The dashboard
+   does two things to permanently prevent auto-start while connected:
+   - On serial connect → sends `STATUS`, flipping
+     `UART_ActivitySeen()` on the MCU.
+   - On every detected `$A,BOOT_SELF_TEST_DONE` (i.e. every Nucleo
+     reset while the dashboard is connected) → re-sends `STATUS`, so
+     the flag is set again before the fresh 3 s window expires.
+
+   Look for `[TX] STATUS (auto-cancel)` after the SERIAL connect
+   message, and `[TX] STATUS (auto-cancel post-reset)` after each
+   reset. With the dashboard connected you have full manual control
+   and the inverter will NOT start on its own.
+
+2. Press the Nucleo's **black reset button**.
+3. Watch the Raw UART event log on the dashboard. Within ~1 second of
+   reset you should see:
+   ```
+   $A,BOOT_SELF_TEST_DONE
+   $C,mod=STAIR,fsw=500,bridge=BOTH,ffund=50.00,mi=0.95,cntoff=0,lock=OK
+   $E,MODE_DEMOTED                         ← only if some sensors are absent
+   $E,WARNING_OPEN_LOOP_NO_PROTECTION      ← only if no sensors present
+   ```
+   Followed by `$T,...` telemetry frames arriving at ~20 Hz.
+
+4. Send `STATUS` — should get back one `$S,...` line summarising state.
+
+5. Send `HELP` — should list all available commands including
+   `MOD STAIR|PSC|STAIR_ALT`, `FSW`, `BRIDGE`, `FFUND`, `CONFIG`, `RESCAN`.
+
+If you missed the 3 s window and see `$A,AUTO_START` followed by
+`$A,RUN` — don't panic. With no power stages connected nothing is
+energised. Send `STOP` to bring the FSM back to IDLE, then reset the
+Nucleo if you want to start over.
+
+**Verify before continuing:**
+- [ ] `$C` line shows the expected STAIR / 500 / BOTH defaults.
+- [ ] `lock=OK` in the `$C` line (will be `OK` for STAIR with `cntoff=0`).
+- [ ] Telemetry arrives at ~20 Hz (visible in the dashboard plot).
+- [ ] `STATUS`, `HELP`, `CONFIG` all respond.
+
+If all four pass, the firmware is alive. Proceed to the
+[Pre-bringup checklist](#pre-bringup-checklist) and then [Phase 1](#phase-1--continuity-no-power).
+
 ---
 
 ## Pre-bringup checklist
 
-- [ ] Branch `pwm-rewrite-configurable` flashed (verified by `$C,...` line
-      appearing on UART after boot — older firmware doesn't emit `$C`).
+- [ ] [Step 0](#step-0--getting-the-firmware-onto-the-board) complete
+      (branch flashed, dashboard connected, boot sequence verified).
 - [ ] Build guide v3.1 Phase 1 (continuity check, no power) passed.
-- [ ] Dashboard installed (`dashboard/.venv` exists with PySide6, pyserial,
-      pyqtgraph). Optional but strongly recommended.
 - [ ] ST-LINK VCP enumerated (Device Manager → Ports → STMicroelectronics
       STLink Virtual COM Port → note COM number).
 - [ ] Terminal program ready as backup (PuTTY, Tera Term, or screen): 115200 8N1.
 - [ ] Bench supplies set to current-limit mode, output OFF.
 - [ ] **Auto-start awareness:** the firmware auto-issues `START` 3 s after
-      boot if no UART activity. To avoid surprise PWM during bench work,
-      either keep the dashboard / terminal attached or pull the Nucleo's
-      reset line low until you're ready.
+      boot if no UART byte has been received. Behavior by scenario:
+      - **USB unplugged → auto-start fires** (standalone deployment).
+      - **USB plugged, no PC software listening → auto-start fires** (USB
+        is just powering the Nucleo).
+      - **Dashboard connected → auto-start cancelled automatically.**
+        The dashboard sends `STATUS` the moment it opens the serial port,
+        which flips the firmware's `UART_ActivitySeen()` flag and blocks
+        auto-start. You get full manual control.
+      - **PuTTY / Tera Term connected but you don't type anything → auto-start
+        fires after 3 s.** Type any character (or send a CR) to cancel.
 
 ---
 
@@ -307,6 +562,256 @@ just at 50 V instead of 10 V.
 - [ ] THD < 5 % (if your scope supports FFT).
 - [ ] Bridge 1 heatsink temperature after 15 min — log it for the PSC
       comparison in Phase 8.
+
+---
+
+## Phase 7b — Safe PSC bringup on the breadboard (do this BEFORE Phase 8)
+
+**When to use this:** you've built the cascaded H-bridge on a breadboard
+(not a PCB) and want to test PSC-PWM at 5 kHz directly. This is the
+most demanding electrical condition the firmware will run on this
+hardware. STAIR at 500 Hz tolerated breadboard parasitics easily;
+PSC's 5 kHz switching with 90° interleave between bridges is much less
+forgiving. Go through this BEFORE the full-voltage Phase 8.
+
+**Why Phase 5–7 (STAIR at 500 Hz) doesn't prove PSC will work:**
+- 10× more switching events per second → 10× the dI/dt-driven ringing
+  in any parasitic inductance.
+- Both bridges switch simultaneously through the same DC bus → 2× the
+  capacitor ripple current of any single-bridge state.
+- Gate-drive bandwidth requirements go up by 10×.
+- Bootstrap caps refresh every 200 µs instead of every 2 ms — fine in
+  steady state, marginal during transient duty-cycle changes.
+
+### Breadboard-specific pre-flight (no power)
+
+- [ ] **Branch flashed**, `$C,...,lock=OK,cntoff~=3199` visible in dashboard log
+- [ ] **Phase 0–4 passed** (firmware boots, sensing self-tests correctly,
+      gate drivers verified individually in Phase 2)
+- [ ] **DC bus caps mounted directly across MOSFET drain-source nodes** —
+      not via 5 cm of breadboard wire. If they're far, add 100 nF
+      ceramic right at the package leads as a local snubber.
+- [ ] **Gate wires < 5 cm each** between TLP250 output, the 22 Ω series
+      resistor, and the MOSFET gate
+- [ ] **TLP250 100 nF bypass cap directly on Pin 5 / Pin 8** — bend the
+      cap leads to touch the IC pins, no breadboard hop
+- [ ] **Heatsinks on all 8 MOSFETs** (clip-on TO-220 minimum)
+- [ ] **Bench supplies OFF**, current limits set to 200 mA each
+- [ ] **Dummy load:** 100 Ω, 10 W+ resistor across cascade AC output via ACS712
+- [ ] **Scope ready** with 2 channels minimum, ground clip securely
+      attached to GND_System (not a floating bridge node)
+- [ ] **Emergency stop method identified** — bench-supply output button
+      reachable without bending around the breadboard
+- [ ] **Safety glasses on** — DC bus caps reversed or shorted can fail
+      explosively
+
+### Step A — Gates only, no DC bus
+
+Goal: confirm PSC produces clean gate signals at the new switching
+frequency with nothing on the bus to convert. If gates ring or
+oscillate here, no point applying high voltage.
+
+1. **Physically disconnect** both DC bus inputs from the bridges
+   (unplug the wires from the bridge DC terminals — bench-supply OFF
+   is not enough; the wires must be out so a slipped finger on the
+   bench-supply switch can't energize the bus).
+2. 15 V gate-drive supplies on.
+3. Dashboard:
+   ```
+   MOD PSC
+   FSW 5000
+   BRIDGE BOTH
+   MI 0.3
+   ```
+   Expect `$C,mod=PSC,fsw=5000,bridge=BOTH,ffund=50.00,mi=0.30,cntoff=3199,lock=OK`.
+   **If `lock=BAD`, stop here** — fix the phase shift per the
+   troubleshooting section before going further.
+4. `START`.
+5. Scope **PWM_1H (PA8) and PWM_3H (PB6) simultaneously**:
+   - Both square waves at 5 kHz (200 µs period).
+   - Rising edges offset by ~50 µs (90° at 5 kHz center-aligned).
+   - Voltage swing 0 ↔ ~14 V.
+6. Scope each of the 8 MOSFET gates one at a time (Vgs):
+   - Clean rising/falling edges, ~50–100 ns rise time through the 22 Ω
+     gate resistor.
+   - **No ringing** during the flat ON or OFF portions.
+   - Dead-time gap visible (~2 µs) on every complementary transition.
+7. Watch the gate-drive 15 V supply current — should be < 50 mA per
+   bridge at MI 0.3.
+8. `STOP`. Disconnect 15 V if you're going to walk away.
+
+**If gates look clean:** proceed to Step B.
+
+**If gates oscillate / ring / show partial transitions:** the breadboard
+gate-drive layout is the limit, not the firmware. Common fixes:
+- Add a second 100 nF ceramic directly across TLP250 Pin 5 / Pin 8 on
+  every driver.
+- Shorten gate wires.
+- Add a 10 kΩ Gate-Source pull-down (per build guide section 3.3.2 —
+  may have been omitted).
+- Move TLP250 supply ground return to star-ground at the MOSFET source.
+
+### Step B — Single-bridge, very low DC bus
+
+Goal: confirm one bridge produces correct 3-level PWM output, with the
+other bridge silent. Catches gross PSC bugs and bridge isolation bugs
+at the lowest possible energy.
+
+1. Reconnect bridge 1's DC input. Leave bridge 2's input disconnected.
+2. Bench supply 1: **5 V, 200 mA limit** (yes, 5 V, not 10 V — we're
+   being paranoid). Output OFF.
+3. Dashboard: `STOP` (if running), then
+   ```
+   MOD PSC
+   FSW 5000
+   BRIDGE B1
+   MI 0.5
+   ```
+   `lock=OK` should still report.
+4. `START`. (FSM goes through PRECHARGE → RUN; bridge 2 gates are silent
+   because BRIDGE=B1 forces bridge 2 to freewheel.)
+5. Bench supply 1: **output ON**. Watch current draw — should be
+   < 100 mA at this voltage with 100 Ω load.
+6. Scope cascade output (Node_X1 to Node_Y2):
+   - Should see PWM at 5 kHz switching between **3 distinct levels**:
+     `-5 V`, `0 V`, `+5 V`.
+   - The "envelope" of the PWM follows a 50 Hz sine of amplitude ~±5 V
+     × MI = ±2.5 V.
+7. Watch DC bus current on the supply ammeter — should be small and
+   roughly sinusoidal.
+8. Touch-test bridge 1 MOSFETs after 30 s (back of hand only) — should
+   be warm at most, not hot.
+9. `STOP`, bench supply 1 OFF.
+
+**If you see only `0 V` and `±5 V` (no intermediate level):** wait,
+that IS 3-level for a single bridge — that's correct. The 5-level
+cascade output only appears when both bridges contribute (Step D).
+
+**If you see strange waveforms or fault trips:** STOP, post-mortem
+before continuing.
+
+### Step C — Repeat for bridge 2
+
+1. Disconnect bridge 1 DC input. Reconnect bridge 2.
+2. Bench supply 2: 5 V, 200 mA limit, OFF.
+3. Dashboard: `STOP`, `BRIDGE B2`, `START`.
+4. Bench supply 2 ON.
+5. Scope: same 3-level PWM, bridge 1 gates now silent.
+6. `STOP`, supply 2 OFF.
+
+**If either Step B or C fails but the other works:** the firmware is
+fine, the problem is hardware on the failing bridge. Inspect gate
+wiring, bootstrap diode/cap, MOSFETs.
+
+### Step D — Cascaded, very low DC bus — the 5-level moment of truth
+
+Goal: prove 5 levels appear at the output with both bridges contributing.
+Still at very low voltage so a failure mode is recoverable.
+
+1. Reconnect both bridge DC inputs.
+2. Both bench supplies: **5 V, 200 mA limit**, OFF.
+3. Dashboard: `STOP`, `BRIDGE BOTH`, `START`.
+4. **Both supplies ON simultaneously** (or as close as you can manage).
+5. Scope cascade output, sweep at 50 µs/div, vertical 5 V/div:
+   - Expect **5 distinct levels**: `-10 V`, `-5 V`, `0 V`, `+5 V`, `+10 V`.
+   - PWM at 5 kHz between them.
+   - Density of points at each level varies over the 50 Hz fundamental.
+   - Use persistence mode if your scope supports it — bands light up clearly.
+6. Watch DC bus currents on both supplies — both should be similar
+   (within 10–20 % of each other). **If one bridge draws much more
+   than the other, you have a different problem from concern #8 — stop
+   and investigate.**
+7. Run 30 s. Touch-test MOSFETs on both bridges — should be similar
+   temperatures.
+8. `STOP`, both supplies OFF.
+
+**If only 3 levels visible (-10 V, 0 V, +10 V) instead of 5:** the
+phase shift is broken. STOP, check `$C,...,lock=` — was it `OK` when
+you started? If yes, the firmware thinks the shift is locked but the
+hardware isn't honoring it. Apply Fix A or D from the
+[Troubleshooting](#troubleshooting-psc-carrier-shift) section, or
+fall back to STAIR_ALT (Phase 8b).
+
+**If 5 levels visible:** ✅ this is the project deliverable working.
+Proceed to Step E.
+
+### Step E — Gradual voltage ramp
+
+Goal: confirm everything stays stable as voltage and current go up.
+
+For each voltage step `V_target = 10, 20, 30, 40, 50` V:
+
+1. `STOP`. Both supplies OFF.
+2. Set both supplies to `V_target`, **current limit 500 mA initially**
+   (raise to 1 A once V_target ≥ 30 V, to 5 A at 50 V).
+3. Dashboard: confirm `MOD PSC`, `FSW 5000`, `BRIDGE BOTH`, `MI 0.5`.
+4. `START`.
+5. Both supplies ON.
+6. Scope: 5 levels still present at `±2·V_target`. Envelope a clean
+   ~50 Hz sine.
+7. Check dashboard telemetry:
+   - `vdc1` and `vdc2` both within 1 V of supply setting under load
+   - `iout` peak ≈ `2 · V_target · MI / R_load`. For 20 V bus, MI 0.5,
+     100 Ω load: peak ≈ 200 mA.
+   - No `$F,...` fault lines.
+8. Watch supplies' actual current draw — should match `iout` (averaged).
+9. Touch-test MOSFETs after 30 s at each step.
+10. `STOP` between steps for cool-down (longer at higher voltages).
+
+**Stop the ramp at the first sign of any of these:**
+- Output waveform degrades (extra levels appearing, asymmetry growing)
+- A MOSFET getting noticeably hotter than its mates
+- DC bus voltage drooping more than ~2 V under load (cap or supply
+  inadequate for ripple)
+- Any `$F,...` fault line
+- Visible smoke (this should not need saying, but…)
+- Smell of hot insulation
+
+### Step F — MI ramp at target voltage
+
+Once you've reached your target bus voltage stably:
+
+1. `STOP`. `MI 0.5`. `START`. Confirm output is sinusoidal envelope.
+2. `STOP`. `MI 0.7`. `START`. Output amplitude scales up.
+3. `STOP`. `MI 0.95`. `START`. Maximum output amplitude.
+4. At each MI, run 30 s and confirm:
+   - Output still 5-level.
+   - Bridge 1 and Bridge 2 MOSFETs at similar temperatures.
+   - No fault trips.
+
+### Step G — Sustained run
+
+Once Steps A–F all pass cleanly:
+
+1. `STOP`. Set everything to your final operating point (50 V bus,
+   MI 0.95, BRIDGE BOTH, FSW 5000, MOD PSC).
+2. `START`.
+3. Run 5–15 minutes, **watching the scope and thermals the whole time**.
+4. Log heatsink temperatures every 2 minutes.
+5. Compare bridge 1 vs bridge 2 thermals at steady state — should be
+   within 5 °C. This is the headline result.
+
+### Breadboard-specific failure modes to watch for
+
+- **Gates oscillating mid-pulse** — TLP250 supply bypass insufficient
+  for 5 kHz switching. Add 100 nF directly on Pin 5/8.
+- **Output waveform "fuzzy" at level boundaries** — ground bounce from
+  high dI/dt. Star-ground the gate-drive returns at each MOSFET source.
+- **Output level voltage sagging under load** — DC bus cap too far from
+  switches. Add 1 µF ceramic directly across drain-source pairs.
+- **Random fault trips even at low voltage** — EMI corrupting MCP3201
+  SPI reads. Move SPI wires away from the H-bridge wires; route SPI
+  ground separately back to the safe-side ground.
+- **MOSFET smoking** — shoot-through. Verify dead-time on scope at the
+  exact moment of failure; may need to increase from 2 µs to 3 µs in
+  [pwm_modulator.c](Core/Src/pwm_modulator.c) `PWM_DEAD_TIME_DTG`.
+- **No 5-level output despite `lock=OK`** — phase shift good in
+  firmware but breadboard parasitic L/C distorting the cascade. Add
+  a snubber across each MOSFET drain-source (already in BOM:
+  22 Ω + 2.2 nF series).
+
+If everything passes through Step G, you're ready for the full Phase 8
+sustained-load characterization on a real load.
 
 ---
 
