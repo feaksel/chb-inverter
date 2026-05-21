@@ -18,6 +18,87 @@ Adds a second modulator alongside the bench-validated STAIR, makes the PWM
 runtime-configurable from UART/dashboard, and adds an auto-start path so
 the system runs standalone with safe defaults when no UART is connected.
 
+### MISO topology change (2 shared lines) + hardware FAULT_OUT pin
+User's PCB does not match the firmware's original 3-independent-MISO
+assumption. The actual board has **two** MCP3201 data-return lines:
+- Lower-bridge island: DC1 ADC alone on its own MISO (PA6).
+- Upper-bridge island: DC2 ADC **and** the current ADC wire-share one
+  isolated MISO return (PC3). Each ADC keeps its own chip select.
+
+The original `SPI_MCP3201_Read` asserted all selected chip-selects
+together and read three separate MISO pins in parallel — on this board
+that would put the DC2 and current MCP3201 DOUTs onto the same wire
+simultaneously. Rewritten ([spi_mcp3201.c](Core/Src/spi_mcp3201.c)) to
+a strictly **sequential one-channel-at-a-time read**: exactly one CS is
+asserted per 16-clock pass, so DC2 and CUR are never selected together.
+This also matches the read sequence described in build guide v3.1
+section 3.6.2. Slower (~3× the read time) but negligible at the 1 kHz
+sense rate. `config.h` MISO_CUR pin moved from PC4 to PC3 (shared with
+DC2); PC4 is now unused.
+
+**Hardware FAULT_OUT pin added** ([config.h](Core/Inc/config.h),
+[main.c](Core/Src/main.c), [fsm.c](Core/Src/fsm.c)). PB5 is configured
+as a push-pull output, active-low: the FSM drives it LOW in
+`enter_fault` and HIGH in `enter_idle`. Corresponds to build guide
+v3.1 header pin 16 "FAULT_OUT". Drives an indicator LED or an external
+interlock. Faults are still also reported over UART (`$F` lines) as
+before — the GPIO is an addition, not a replacement.
+
+### Protection thresholds runtime-configurable (VNOM / OC)
+User pointed out they don't always run 50 V per bridge — bench tests
+often run at 12 V or other low voltages. With the original fixed 40 V
+undervoltage threshold, a 12 V bus trips UV instantly and the inverter
+can never leave PRECHARGE. Low-voltage testing was effectively
+impossible without disabling protection entirely (OPEN mode).
+
+Fixed by making the DC-bus protection thresholds derive from a single
+runtime-settable nominal bus voltage:
+- **`VNOM <v>`** (UART) / **Set VNOM** (dashboard) — sets the nominal
+  per-bridge bus voltage, 5–60 V. The firmware derives UV = 0.80·VNOM,
+  OV = 1.16·VNOM, IMBAL = 0.20·VNOM. At VNOM = 50 these reproduce the
+  original 40 / 58 / 10 V design values exactly.
+- **`OC <a>`** (UART) / **Set OC** (dashboard) — overcurrent trip,
+  0.5–20 A, independent of VNOM (it is a load property, not a bus
+  property).
+- Both allowed in IDLE or FAULT (FAULT included so an operator who
+  tripped UV at low voltage can set VNOM and then CLEAR).
+- New `$P,vnom=...,uv=...,ov=...,oc=...,imbal=...` telemetry line,
+  emitted at boot, on any VNOM/OC change, and on `CONFIG`.
+
+Firmware: [protection.h](Core/Inc/protection.h) /
+[protection.c](Core/Src/protection.c) thresholds converted from
+compile-time `#define`s to runtime variables with `Protection_Set*` /
+`Protection_Get*` accessors; [uart_telem.c](Core/Src/uart_telem.c) adds
+the `VNOM`/`OC` parser and `UART_SendProtectionConfig`;
+[fsm.c](Core/Src/fsm.c) adds `handle_vnom` / `handle_oc` and emits `$P`.
+
+Dashboard: `Set VNOM` / `Set OC` controls in the PWM-config panel; the
+simulator's sensor model and fault logic now scale with VNOM so PC-only
+demos stay consistent at any nominal voltage; `protocol.py` recognises
+the `$P` line; 5 new sim tests (25 total, all passing).
+
+### Dead-time raised to 3 µs for the IRFB4110 power stage
+User clarified the actual MOSFETs are **IRFB4110** (100 V, 180 A, 4.5 mΩ),
+not the IRFZ44N (55 V, 49 A, 17.5 mΩ) listed in build guide v3.1's BOM.
+
+Two consequences:
+- **Dead-time increased from 2 µs to 3 µs** ([pwm_modulator.c](Core/Src/pwm_modulator.c)).
+  The IRFB4110 has roughly 2× the gate charge (~150 nC vs ~67 nC), so with
+  the same TLP250 + 22 Ω gate resistor the turn-on/turn-off transitions
+  take about twice as long. The OLD 2 µs value (bench-validated for
+  IRFZ44N) no longer leaves enough shoot-through margin. New value is
+  `TIM_DTG_3US_AT_64MHZ` (`BDTR.DTG = 0xA0`). Added named DTG constants
+  for 2/3/4 µs so the value is easy to adjust. At 5 kHz PWM, 3 µs is
+  1.5 % of the period — negligible output-amplitude cost.
+- **The 1.5KE62A TVS (84.5 V clamp) is now correctly matched.** With the
+  100 V IRFB4110 the TVS clamps spikes well below breakdown. With the
+  55 V IRFZ44N the same TVS would have let the FET see 84.5 V — over
+  its rating. The IRFB4110 choice resolves that latent BOM hazard.
+
+Docs updated: README key-parameters, HARDWARE_BRINGUP (scope-expected
+dead-time, FSW-sweep note, shoot-through troubleshooting escalates
+3→4 µs now), FIRST_BENCH_SESSION (same).
+
 ### Dashboard auto-cancels firmware auto-start while connected
 User asked: "if no UART, only the dashboard isn't connected, right?"
 Almost — but the original implementation had an edge case where the

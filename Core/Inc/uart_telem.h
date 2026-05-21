@@ -15,11 +15,13 @@ typedef enum {
     UART_CMD_HELP,
     UART_CMD_MI,
     UART_CMD_RESCAN,
-    UART_CMD_MOD,       /* set modulator: STAIR | PSC */
+    UART_CMD_MOD,       /* set modulator: STAIR | PSC | STAIR_ALT */
     UART_CMD_FSW,       /* set switching frequency (Hz) */
     UART_CMD_BRIDGE,    /* set bridge select: BOTH | B1 | B2 */
     UART_CMD_FFUND,     /* set fundamental frequency (Hz) */
-    UART_CMD_CONFIG,    /* print current PWM config */
+    UART_CMD_CONFIG,    /* print current PWM + protection config */
+    UART_CMD_VNOM,      /* set nominal bus voltage (derives UV/OV/IMBAL) */
+    UART_CMD_OC,        /* set overcurrent trip threshold (A) */
     UART_CMD_INVALID
 } uart_cmd_type_t;
 
@@ -54,6 +56,11 @@ void UART_SendPwmConfig(const char *modulator_name,
                         float modulation_index,
                         uint32_t measured_cnt_offset,
                         uint8_t  phase_locked);
+void UART_SendProtectionConfig(float nominal_v,
+                               float undervoltage_v,
+                               float overvoltage_v,
+                               float overcurrent_a,
+                               float imbalance_v);
 void UART_SendStatus(uint32_t ms,
                      fsm_state_t state,
                      sensing_mode_t mode,

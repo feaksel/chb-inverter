@@ -76,15 +76,52 @@ void SPI_MCP3201_Init(void)
     cs_set(SENSOR_MASK_ALL);
 }
 
+/* Read one MCP3201 with exactly ONE chip-select asserted at a time, sampling
+ * a single MISO GPIO. This is mandatory for boards that wire-share a MISO
+ * line between channels (here: the upper-bridge island carries DC2 and the
+ * current ADC on one isolated MISO return). Asserting two chip-selects on a
+ * shared wire would put two MCP3201 DOUTs onto the same net. Reading strictly
+ * one channel at a time guarantees only one ADC ever drives the wire.
+ *
+ * MCP3201 SPI mode 0,0 per build guide v3.1 section 7.3:
+ *   DOUT returns [NULL][B11][B10]..[B0][X][X][X]
+ * After 16 SCK rising-edge samples the NULL lands at raw[15], data B11..B0
+ * at raw[14:3], so the extraction is (raw >> 3) & 0x0FFF.
+ *
+ * Bringup verification: apply a known low voltage (e.g. 5 V) to the DC bus
+ * input. Expected raw at 5 V is 5 / (105.1/5.1 * 5.0/4096) ~= 199. If
+ * readings come back ~3120 (~8x off), the NULL bit is appearing at raw[13]
+ * instead and the correct shift is (raw >> 1). Adjust here. */
+static uint16_t read_one_channel(uint8_t cs_bit,
+                                 GPIO_TypeDef *miso_port,
+                                 uint32_t miso_pin)
+{
+    uint16_t raw = 0u;
+    uint32_t miso_bit = pin_mask(miso_pin);
+
+    gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+    cs_reset(cs_bit);              /* assert this one chip-select only */
+    delay_half_period();
+
+    for (uint32_t i = 0; i < 16u; i++) {
+        gpio_set(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+        delay_half_period();
+
+        raw <<= 1;
+        raw |= ((miso_port->IDR & miso_bit) != 0u) ? 1u : 0u;
+
+        gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+        delay_half_period();
+    }
+
+    cs_set(cs_bit);                /* deassert before the next channel */
+    delay_half_period();
+
+    return (uint16_t)((raw >> 3) & 0x0FFFu);
+}
+
 void SPI_MCP3201_Read(uint8_t mask, mcp3201_samples_t *samples)
 {
-    uint16_t raw_dc1 = 0u;
-    uint16_t raw_dc2 = 0u;
-    uint16_t raw_cur = 0u;
-    uint32_t dc1_mask = pin_mask(MCP3201_MISO_DC1_PIN);
-    uint32_t dc2_mask = pin_mask(MCP3201_MISO_DC2_PIN);
-    uint32_t cur_mask = pin_mask(MCP3201_MISO_CUR_PIN);
-
     if (samples == (mcp3201_samples_t *)0) {
         return;
     }
@@ -93,58 +130,20 @@ void SPI_MCP3201_Read(uint8_t mask, mcp3201_samples_t *samples)
     samples->dc2 = 0u;
     samples->current = 0u;
 
-    if ((mask & SENSOR_MASK_ALL) == 0u) {
-        return;
-    }
-
-    /* The 6N137-isolated outputs are independent GPIO inputs instead of a
-     * shared MISO bus; some optocoupler outputs do not release cleanly enough
-     * to be wire-shared. */
-    gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
-    cs_reset(mask);
-    delay_half_period();
-
-    for (uint32_t i = 0; i < 16u; i++) {
-        gpio_set(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
-        delay_half_period();
-
-        raw_dc1 <<= 1;
-        raw_dc2 <<= 1;
-        raw_cur <<= 1;
-
-        if ((mask & SENSOR_MASK_DC1) != 0u) {
-            raw_dc1 |= ((MCP3201_MISO_DC1_PORT->IDR & dc1_mask) != 0u) ? 1u : 0u;
-        }
-        if ((mask & SENSOR_MASK_DC2) != 0u) {
-            raw_dc2 |= ((MCP3201_MISO_DC2_PORT->IDR & dc2_mask) != 0u) ? 1u : 0u;
-        }
-        if ((mask & SENSOR_MASK_CUR) != 0u) {
-            raw_cur |= ((MCP3201_MISO_CUR_PORT->IDR & cur_mask) != 0u) ? 1u : 0u;
-        }
-
-        gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
-        delay_half_period();
-    }
-
-    cs_set(mask);
-    delay_half_period();
-
-    /* MCP3201 SPI mode 0,0 per build guide v3.1 section 7.3:
-     *   DOUT returns [NULL][B11][B10]..[B0][X][X][X]
-     * After 16 SCK rising-edge samples the NULL lands at raw[15], data B11..B0
-     * at raw[14:3], so the extraction is (raw >> 3) & 0x0FFF.
-     *
-     * Bringup verification: apply a known low voltage (e.g. 5 V) to the DC
-     * bus input. Expected raw at 5 V is 5 / (105.1/5.1 * 5.0/4096) ≈ 199.
-     * If readings come back ~3120 (i.e. ~8x off), the NULL bit is appearing
-     * at raw[13] instead and the correct shift is (raw >> 1). Adjust here. */
+    /* Sequential, one chip-select at a time. DC1 has its own MISO line;
+     * DC2 and the current ADC share the upper-bridge MISO line, so they
+     * must never be selected together — handled naturally by reading each
+     * channel in its own pass. */
     if ((mask & SENSOR_MASK_DC1) != 0u) {
-        samples->dc1 = (uint16_t)((raw_dc1 >> 3) & 0x0FFFu);
+        samples->dc1 = read_one_channel(SENSOR_MASK_DC1,
+                                        MCP3201_MISO_DC1_PORT, MCP3201_MISO_DC1_PIN);
     }
     if ((mask & SENSOR_MASK_DC2) != 0u) {
-        samples->dc2 = (uint16_t)((raw_dc2 >> 3) & 0x0FFFu);
+        samples->dc2 = read_one_channel(SENSOR_MASK_DC2,
+                                        MCP3201_MISO_DC2_PORT, MCP3201_MISO_DC2_PIN);
     }
     if ((mask & SENSOR_MASK_CUR) != 0u) {
-        samples->current = (uint16_t)((raw_cur >> 3) & 0x0FFFu);
+        samples->current = read_one_channel(SENSOR_MASK_CUR,
+                                            MCP3201_MISO_CUR_PORT, MCP3201_MISO_CUR_PIN);
     }
 }

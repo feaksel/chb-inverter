@@ -42,7 +42,8 @@ class DashboardWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("5-Level CHB Visual Twin Dashboard")
-        self.resize(1280, 760)
+        self.resize(1440, 960)
+        self.setMinimumSize(1120, 780)
 
         self.sim_source = SimSource(self)
         self.serial_source = SerialSource(self)
@@ -105,13 +106,13 @@ class DashboardWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
 
         bottom_panel = self._make_bottom_panel()
-        bottom_panel.setMinimumHeight(220)
-        bottom_panel.setMaximumHeight(360)
+        bottom_panel.setMinimumHeight(340)
+        bottom_panel.setMaximumHeight(560)
         main_splitter.addWidget(splitter)
         main_splitter.addWidget(bottom_panel)
-        main_splitter.setStretchFactor(0, 4)
-        main_splitter.setStretchFactor(1, 1)
-        main_splitter.setSizes([520, 320])
+        main_splitter.setStretchFactor(0, 3)
+        main_splitter.setStretchFactor(1, 2)
+        main_splitter.setSizes([520, 440])
         layout.addWidget(main_splitter, 1)
         self._apply_style()
 
@@ -254,21 +255,28 @@ class DashboardWindow(QMainWindow):
         self.arm_live.stateChanged.connect(self._update_scenario_buttons)
         layout.addWidget(self.arm_live)
 
-        command_row = QHBoxLayout()
-        commands = [
+        # Two rows of command buttons so the labels aren't cramped: the
+        # state-changing actions on top, the query/diagnostic commands below.
+        action_commands = [
             ("START", self._send_start),
             ("STOP", lambda: self._send_command("STOP")),
             ("CLEAR", lambda: self._send_command("CLEAR")),
+        ]
+        query_commands = [
             ("STATUS", lambda: self._send_command("STATUS")),
             ("HELP", lambda: self._send_command("HELP")),
             ("RESCAN", lambda: self._send_command("RESCAN")),
             ("CONFIG", lambda: self._send_command("CONFIG")),
         ]
-        for label, handler in commands:
-            button = QPushButton(label)
-            button.clicked.connect(handler)
-            command_row.addWidget(button)
-        layout.addLayout(command_row)
+        for command_set in (action_commands, query_commands):
+            command_row = QHBoxLayout()
+            command_row.setSpacing(6)
+            for label, handler in command_set:
+                button = QPushButton(label)
+                button.setMinimumHeight(30)
+                button.clicked.connect(handler)
+                command_row.addWidget(button)
+            layout.addLayout(command_row)
 
         mode_row = QHBoxLayout()
         self.mode_combo = QComboBox()
@@ -343,10 +351,42 @@ class DashboardWindow(QMainWindow):
         ffund_row.addWidget(self.ffund_btn)
         layout.addLayout(ffund_row)
 
+        vnom_row = QHBoxLayout()
+        self.vnom_spin = QDoubleSpinBox()
+        self.vnom_spin.setRange(5.0, 60.0)
+        self.vnom_spin.setSingleStep(1.0)
+        self.vnom_spin.setDecimals(1)
+        self.vnom_spin.setValue(50.0)
+        self.vnom_btn = QPushButton("Set VNOM")
+        self.vnom_btn.clicked.connect(self._send_vnom)
+        vnom_row.addWidget(QLabel("Bus Vnom (V)"))
+        vnom_row.addWidget(self.vnom_spin, 1)
+        vnom_row.addWidget(self.vnom_btn)
+        layout.addLayout(vnom_row)
+
+        oc_row = QHBoxLayout()
+        self.oc_spin = QDoubleSpinBox()
+        self.oc_spin.setRange(0.5, 20.0)
+        self.oc_spin.setSingleStep(0.5)
+        self.oc_spin.setDecimals(1)
+        self.oc_spin.setValue(15.0)
+        self.oc_btn = QPushButton("Set OC")
+        self.oc_btn.clicked.connect(self._send_oc)
+        oc_row.addWidget(QLabel("Overcurrent (A)"))
+        oc_row.addWidget(self.oc_spin, 1)
+        oc_row.addWidget(self.oc_btn)
+        layout.addLayout(oc_row)
+
         return group
 
     def _send_mod(self) -> None:
         self._send_command(f"MOD {self.mod_combo.currentText().strip().upper()}")
+
+    def _send_vnom(self) -> None:
+        self._send_command(f"VNOM {self.vnom_spin.value():.2f}")
+
+    def _send_oc(self) -> None:
+        self._send_command(f"OC {self.oc_spin.value():.2f}")
 
     def _send_fsw(self) -> None:
         text = self.fsw_combo.currentText().strip()

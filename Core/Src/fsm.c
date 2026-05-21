@@ -71,9 +71,23 @@ static void warn_if_open_loop(void)
     }
 }
 
+/* FAULT_OUT hardware pin (build guide header pin 16), active-low:
+ * LOW = a fault is latched, HIGH = no fault. The pin is configured as a
+ * push-pull output and driven HIGH in main.c GPIO_Config before the FSM
+ * starts. */
+static void fault_out_drive(uint8_t fault_active)
+{
+    if (fault_active != 0u) {
+        FAULT_OUT_PORT->BSRR = (uint32_t)1u << (FAULT_OUT_PIN + 16u);  /* LOW */
+    } else {
+        FAULT_OUT_PORT->BSRR = (uint32_t)1u << FAULT_OUT_PIN;          /* HIGH */
+    }
+}
+
 static void enter_idle(void)
 {
     pwm_disable_and_reset_precharge();
+    fault_out_drive(0u);
     g_state = FSM_STATE_IDLE;
 }
 
@@ -81,6 +95,7 @@ static void enter_fault(uint8_t faults)
 {
     pwm_disable_and_reset_precharge();
     Protection_Latch(faults);
+    fault_out_drive(1u);
     g_state = FSM_STATE_FAULT;
     UART_SendFault(Protection_GetLatched());
 }
@@ -227,6 +242,15 @@ static void emit_pwm_config_line(void)
                        g_pwm_phase_locked);
 }
 
+static void emit_protection_config_line(void)
+{
+    UART_SendProtectionConfig(Protection_GetNominalVoltage(),
+                              Protection_GetUndervoltage(),
+                              Protection_GetOvervoltage(),
+                              Protection_GetOvercurrent(),
+                              Protection_GetImbalance());
+}
+
 static uint8_t require_idle_for_pwm_config(void)
 {
     if (g_state != FSM_STATE_IDLE) {
@@ -302,6 +326,42 @@ static void handle_ffund(const uart_command_t *cmd)
     emit_pwm_config_line();
 }
 
+/* Protection thresholds may be changed in IDLE or FAULT. FAULT is allowed so
+ * that if the inverter tripped UV because the bus is at a low test voltage,
+ * the operator can set VNOM appropriately and then CLEAR. */
+static uint8_t require_idle_or_fault_for_protection(void)
+{
+    if ((g_state != FSM_STATE_IDLE) && (g_state != FSM_STATE_FAULT)) {
+        UART_SendError("PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT");
+        return 0u;
+    }
+    return 1u;
+}
+
+static void handle_vnom(const uart_command_t *cmd)
+{
+    if (!require_idle_or_fault_for_protection()) return;
+
+    if (Protection_SetNominalVoltage(cmd->float_arg) == 0u) {
+        UART_SendError("VNOM_RANGE_5_TO_60");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_protection_config_line();
+}
+
+static void handle_oc(const uart_command_t *cmd)
+{
+    if (!require_idle_or_fault_for_protection()) return;
+
+    if (Protection_SetOvercurrent(cmd->float_arg) == 0u) {
+        UART_SendError("OC_RANGE_0_5_TO_20");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    emit_protection_config_line();
+}
+
 static void handle_command(const uart_command_t *cmd)
 {
     switch (cmd->type) {
@@ -344,9 +404,16 @@ static void handle_command(const uart_command_t *cmd)
     case UART_CMD_FFUND:
         handle_ffund(cmd);
         break;
+    case UART_CMD_VNOM:
+        handle_vnom(cmd);
+        break;
+    case UART_CMD_OC:
+        handle_oc(cmd);
+        break;
     case UART_CMD_CONFIG:
         UART_SendAck(cmd->raw);
         emit_pwm_config_line();
+        emit_protection_config_line();
         break;
     case UART_CMD_INVALID:
     default:
@@ -389,6 +456,7 @@ void FSM_Init(void)
     g_mode = select_best_mode();
     UART_WriteString("$A,BOOT_SELF_TEST_DONE\r\n");
     emit_pwm_config_line();
+    emit_protection_config_line();
     if (g_mode != MODE_FULL) {
         UART_SendError("MODE_DEMOTED");
     }

@@ -9,12 +9,25 @@
 #define TIMER_CLK_HZ 64000000u
 #define BOOTSTRAP_PRECHARGE_MS 6u
 #define PWM_PRESCALER 0u
-#define TIM_DTG_2US_AT_64MHZ 0x80u
 
-/* Dead-time matches the bench-validated OLD PWM (2 us). Build guide v3.1
- * suggests 500 ns-1 us but the conservative 2 us was tested with the actual
- * TLP250 + IRFZ44N propagation on this hardware. Change with caution. */
-#define PWM_DEAD_TIME_DTG TIM_DTG_2US_AT_64MHZ
+/* BDTR.DTG encodings at the 64 MHz timer clock (tDTS = 15.625 ns):
+ *   0x80 -> (64+0)  x 2  x 15.625 ns = 2.0 us
+ *   0xA0 -> (64+32) x 2  x 15.625 ns = 3.0 us
+ *   0xC0 -> (32+0)  x 8  x 15.625 ns = 4.0 us
+ * See RM0316 TIMx_BDTR register description for the full DTG ranges. */
+#define TIM_DTG_2US_AT_64MHZ 0x80u
+#define TIM_DTG_3US_AT_64MHZ 0xA0u
+#define TIM_DTG_4US_AT_64MHZ 0xC0u
+
+/* Dead-time set to 3 us for the IRFB4110 power stage. The IRFB4110 has
+ * roughly 2x the gate charge of the IRFZ44N the build guide v3.1 BOM
+ * originally listed (~150 nC vs ~67 nC), so with the same TLP250 + 22 ohm
+ * gate resistor the turn-on/turn-off transitions take about twice as long.
+ * The OLD bench-validated value was 2 us (for IRFZ44N); 3 us restores the
+ * shoot-through margin for the larger FET. The dominant term is still the
+ * TLP250 propagation delay (0.5 us typ, 1.5 us max) which is unchanged.
+ * Applies to both TIM1 and TIM8. Change with caution. */
+#define PWM_DEAD_TIME_DTG TIM_DTG_3US_AT_64MHZ
 
 /* STAIR thresholds + duty clamps — preserved verbatim from the OLD PWM in
  * main.c. The 0.95 high clamp was added in the pre-bringup fixes to comply

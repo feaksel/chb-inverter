@@ -291,7 +291,7 @@ MOSFETs one at a time. Expected at 500 Hz with MI 0.5:
 - HS gates (Q1/Q3 of each bridge): 0 V ↔ ~14 V transitions, but with
   STAIR these happen **slowly** (level transitions every 2 ms or so).
 - LS gates (Q2/Q4): complementary to their HS partners.
-- Dead-time gap visible (~2 µs) on every transition.
+- Dead-time gap visible (~3 µs) on every transition.
 
 Touch-test each TLP250 package. Should be **cool to the touch (room
 temperature)** — STAIR is gentle on the drivers.
@@ -383,18 +383,26 @@ broken something — fix that before going further.
 
 ### E.2 — Run STAIR
 
+> ⚠️ **Set VNOM to match your test bus voltage FIRST.** The default
+> protection thresholds are sized for a 50 V bus (UV trips below 40 V).
+> At a 10 V test bus the firmware would trip undervoltage instantly and
+> never leave PRECHARGE. `VNOM 10` rescales UV/OV/IMBAL to 8 / 11.6 /
+> 2 V — appropriate protection for a 10 V test.
+
 Dashboard:
 ```
 STOP
+VNOM 10               (match the 10 V test bus — derives UV=8, OV=11.6, IMBAL=2)
 MOD STAIR
 FSW 500
 BRIDGE BOTH
 MI 0.95
-CONFIG                (verify settings)
+CONFIG                (verify settings — check the $P line shows uv=8.00)
 START
 ```
 
-Wait for `$A,RUN`.
+Wait for `$A,RUN`. If you get `$F,0x01,UV` instead, you forgot `VNOM`
+or set it wrong — `STOP`, fix VNOM, `CLEAR`, retry.
 
 ### E.3 — Bring up bus voltage
 
@@ -441,13 +449,16 @@ Both bench supplies OFF.
 ## Section F — STAIR_ALT cascaded at 10 V (verify the easy fallback)
 
 Same setup as E. Confirms STAIR_ALT compiles and runs and that the
-bridge alternation logic is doing what it should.
+bridge alternation logic is doing what it should. `VNOM` persists from
+Section E (it is not reset by `STOP` or a modulator change), so the
+protection is still scaled for the 10 V bus — but if you jumped
+straight to Section F, send `VNOM 10` first.
 
 ### F.1 — Switch to STAIR_ALT
 
 ```
 MOD STAIR_ALT
-CONFIG                (verify mod=STAIR_ALT)
+CONFIG                (verify mod=STAIR_ALT; $P line still shows uv=8.00)
 START
 ```
 
@@ -498,11 +509,12 @@ Both supplies: **5.0 V, current limit 200 mA**, OFF.
 
 ```
 STOP
+VNOM 5                (match the 5 V test bus — derives UV=4, OV=5.8, IMBAL=1)
 MOD PSC
 FSW 5000
 BRIDGE B1
 MI 0.5
-CONFIG                (check: cntoff=3199, lock=OK)
+CONFIG                (check: cntoff=3199, lock=OK; $P line shows uv=4.00)
 START
 ```
 
@@ -577,11 +589,14 @@ project deliverable is achieved.**
 
 ### H.1 — Re-arm cascade mode
 
+`VNOM 5` persists from Section G, so protection is still scaled for the
+5 V bus. (If you jumped here, send `VNOM 5` first.)
+
 ```
 STOP
 BRIDGE BOTH
 MI 0.5
-CONFIG                (one more sanity check on lock=OK)
+CONFIG                (sanity check: $C lock=OK, $P uv=4.00)
 START
 ```
 
@@ -674,21 +689,26 @@ For each `V_target = 10, 20, 30, 40, 50` V:
 1. `STOP` from previous step
 2. Both supplies OFF
 3. Set both supplies to V_target
-4. Adjust current limits:
+4. **`VNOM <V_target>`** — rescale protection to the new bus voltage.
+   This is critical at every step: at V_target = 20 V with VNOM still
+   at 5 (from Section H) the firmware would trip overvoltage (20 V >
+   5×1.16 = 5.8 V) the instant you energize. Always set VNOM = the bus
+   voltage you are about to apply. Confirm the `$P` line.
+5. Adjust current limits:
    - V ≤ 20 V: 500 mA each
    - V = 30 V: 1 A each
    - V ≥ 40 V: 2 A each (or your load's max)
-5. `START` (mode still PSC, FSW 5000, BRIDGE BOTH, MI 0.5)
-6. Both supplies ON simultaneously
-7. Scope cascade output — 5 bands present at ±2·V_target
-8. Watch dashboard for ~30 s:
+6. `START` (mode still PSC, FSW 5000, BRIDGE BOTH, MI 0.5)
+7. Both supplies ON simultaneously
+8. Scope cascade output — 5 bands present at ±2·V_target
+9. Watch dashboard for ~30 s:
    - No fault lines
    - `vdc1`, `vdc2` track supply settings
    - `iout` peak ≈ 2·V_target·MI / 100 Ω (e.g. at 30 V → ~300 mA)
-9. Touch-test MOSFETs and TLP250s briefly
-10. `STOP`, both supplies OFF
-11. Wait 30 s for thermal recovery
-12. Next voltage
+10. Touch-test MOSFETs and TLP250s briefly
+11. `STOP`, both supplies OFF
+12. Wait 30 s for thermal recovery
+13. Next voltage
 
 ### I.2 — Pass criteria for each step
 
@@ -710,12 +730,14 @@ Final characterization. 5–15 minutes at design conditions.
 
 ```
 STOP
+VNOM 50            (full design bus voltage — UV=40, OV=58, IMBAL=10)
 MOD PSC
 FSW 5000
 BRIDGE BOTH
 MI 0.95            (full modulation depth)
 FFUND 50.0         (50 Hz fundamental)
-CONFIG             (final check, all values as expected, lock=OK)
+OC 15              (overcurrent trip at design value)
+CONFIG             (final check: $C lock=OK, $P uv=40.00 ov=58.00)
 START
 ```
 
@@ -792,7 +814,7 @@ supply Output Off button). Then diagnose by symptom:
 |---|---|---|
 | TLP250 hot (>70 °C) | Bypass cap inadequate, gate ringing at 5 kHz | Add 100 nF directly on Pin 5/8. Verify with scope at MI 0.3 in Step A |
 | TLP250 instantly hot on power-up | Shorted output / MOSFET gate-source short | Replace MOSFET, check 10 kΩ gate-pulldown installed |
-| MOSFET hot fast / smoking | Shoot-through or stuck-on | Verify dead-time on scope. Bump from 2 µs to 3 µs in `PWM_DEAD_TIME_DTG` and reflash |
+| MOSFET hot fast / smoking | Shoot-through or stuck-on | Verify dead-time on scope (3 µs default for IRFB4110). If breadboard gate drive is slow, bump `PWM_DEAD_TIME_DTG` to `TIM_DTG_4US_AT_64MHZ` and reflash |
 | MOSFET hot evenly over time | High switching loss at 5 kHz | Better heatsink, lower FSW (`FSW 2000`), or lower MI |
 | One bridge much hotter than other | Bridge mismatch in hardware (different MOSFET, missing snubber, etc.) | Inspect both bridges component-by-component |
 | DC bus cap warm | High ripple current — PSC stresses bus caps more than STAIR | Add another 1000 µF in parallel right at the bridge DC input |
@@ -802,7 +824,7 @@ supply Output Off button). Then diagnose by symptom:
 
 ## Never-do list
 
-- ❌ Never apply > 55 V to a single bridge DC bus (IRFZ44N is 55 V rated, TVS clamps at 84.5 V but you don't want to live there)
+- ❌ Never apply > 80 V to a single bridge DC bus. The IRFB4110 MOSFETs are 100 V rated and the 1.5KE62A TVS clamps spikes at 84.5 V, so the design target of 50 V per bridge has comfortable margin — but don't push the steady-state bus near the TVS clamp voltage
 - ❌ Never increase MI above 0.95 (firmware enforces — but don't try)
 - ❌ Never run at > 100 % HS duty for any leg (firmware enforces 95 % clamp — but verify by scoping CCR if you change anything)
 - ❌ Never start with both supplies at significantly different voltages

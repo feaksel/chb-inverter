@@ -350,6 +350,14 @@ static void parse_command(uart_command_t *cmd, const char *line)
         if (parse_mi_arg(&line[6], &cmd->float_arg) != 0u) {
             cmd->type = UART_CMD_FFUND;
         }
+    } else if (strncmp(line, "VNOM ", 5u) == 0) {
+        if (parse_mi_arg(&line[5], &cmd->float_arg) != 0u) {
+            cmd->type = UART_CMD_VNOM;
+        }
+    } else if (strncmp(line, "OC ", 3u) == 0) {
+        if (parse_mi_arg(&line[3], &cmd->float_arg) != 0u) {
+            cmd->type = UART_CMD_OC;
+        }
     }
 }
 
@@ -414,7 +422,7 @@ void UART_SendHelp(void)
 {
     UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN "
                      "MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
-                     "FFUND <hz> CONFIG\r\n");
+                     "FFUND <hz> VNOM <v> OC <a> CONFIG\r\n");
 }
 
 uint8_t UART_ActivitySeen(void)
@@ -447,6 +455,29 @@ void UART_SendPwmConfig(const char *modulator_name,
     append_u32(line, &pos, sizeof(line), measured_cnt_offset);
     append_str(line, &pos, sizeof(line), ",lock=");
     append_str(line, &pos, sizeof(line), phase_locked ? "OK" : "BAD");
+    append_str(line, &pos, sizeof(line), "\r\n");
+    UART_WriteString(line);
+}
+
+void UART_SendProtectionConfig(float nominal_v,
+                               float undervoltage_v,
+                               float overvoltage_v,
+                               float overcurrent_a,
+                               float imbalance_v)
+{
+    char line[140];
+    uint32_t pos = 0u;
+
+    append_str(line, &pos, sizeof(line), "$P,vnom=");
+    append_fixed2(line, &pos, sizeof(line), nominal_v);
+    append_str(line, &pos, sizeof(line), ",uv=");
+    append_fixed2(line, &pos, sizeof(line), undervoltage_v);
+    append_str(line, &pos, sizeof(line), ",ov=");
+    append_fixed2(line, &pos, sizeof(line), overvoltage_v);
+    append_str(line, &pos, sizeof(line), ",oc=");
+    append_fixed2(line, &pos, sizeof(line), overcurrent_a);
+    append_str(line, &pos, sizeof(line), ",imbal=");
+    append_fixed2(line, &pos, sizeof(line), imbalance_v);
     append_str(line, &pos, sizeof(line), "\r\n");
     UART_WriteString(line);
 }

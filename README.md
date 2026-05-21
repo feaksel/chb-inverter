@@ -6,7 +6,7 @@ the supervisory FSM adds sensing, protection, UART control, and telemetry.
 
 ## Highlights
 - 5-level staircase output from two cascaded H-bridges
-- Center-aligned complementary PWM with 2 us dead-time
+- Center-aligned complementary PWM with 3 us dead-time
 - Bootstrap precharge before RUN
 - MCP3201-based isolated DC bus sensing and safe-side current sensing
 - Graceful sensing-mode fallback when sensors are missing or faulty
@@ -25,19 +25,26 @@ the supervisory FSM adds sensing, protection, UART control, and telemetry.
    state transitions, and 20 Hz telemetry.
 
 ## Key Parameters
-PWM defaults remain in [Core/Src/main.c](Core/Src/main.c):
-- `SINE_FREQ`: 50 Hz
-- `PWM_FREQ_HZ`: 500 Hz
-- `SINE_SAMPLES`: 256
-- `MODULATION_INDEX`: 0.95, overridable in IDLE with `MI`
-- `DEADTIME_US`: 2 us
-- `BOOTSTRAP_PRECHARGE_MS`: 6 ms
+PWM defaults are in [Core/Inc/pwm_config.h](Core/Inc/pwm_config.h); most
+are runtime-configurable over UART (see PWM commands below):
+- Modulator: `STAIR` (default), `PSC`, or `STAIR_ALT` — set with `MOD`
+- Switching frequency: 500 Hz default — set with `FSW` (100–20000 Hz)
+- Fundamental frequency: 50 Hz default — set with `FFUND`
+- Modulation index: 0.95 default — set with `MI` (0.0–0.95)
+- Bridge select: `BOTH` default — set with `BRIDGE` (BOTH/B1/B2)
 
-Protection thresholds are in [Core/Inc/protection.h](Core/Inc/protection.h):
-- DC undervoltage: 40.0 V
-- DC overvoltage: 58.0 V
-- Overcurrent: 15.0 A
-- DC imbalance: 10.0 V
+Compile-time PWM constants in [Core/Src/pwm_modulator.c](Core/Src/pwm_modulator.c):
+- Sine LUT size: 256 samples
+- Dead-time: 3 us (`PWM_DEAD_TIME_DTG`, sized for the IRFB4110 power stage)
+- Bootstrap precharge: 6 ms
+
+Protection threshold defaults are in [Core/Inc/protection.h](Core/Inc/protection.h)
+and correspond to the default 50 V nominal bus. They are runtime-adjustable
+with `VNOM` / `OC` (see UART commands below):
+- DC undervoltage: 40.0 V (`0.80 × VNOM`)
+- DC overvoltage: 58.0 V (`1.16 × VNOM`)
+- DC imbalance: 10.0 V (`0.20 × VNOM`)
+- Overcurrent: 15.0 A (independent of VNOM)
 
 ## Pinout
 
@@ -53,22 +60,29 @@ Protection thresholds are in [Core/Inc/protection.h](Core/Inc/protection.h):
 | PWM_4H | TIM8_CH2 | PB8 |
 | PWM_4L | TIM8_CH2N | PB0 |
 
-### Sensing and UART
+### Sensing, UART, and fault output
 | Signal | Pin | Notes |
 |---|---:|---|
 | SCK | PA5 | Bit-banged MCP3201 clock, held at or below 1 MHz |
 | CS_DC1 | PC0 | DC bus 1 MCP3201 chip select |
 | CS_DC2 | PC1 | DC bus 2 MCP3201 chip select |
 | CS_CUR | PC2 | Current MCP3201 chip select |
-| MISO_DC1 | PA6 | Independent isolated MISO |
-| MISO_DC2 | PC3 | Independent isolated MISO |
-| MISO_CUR | PC4 | Independent safe-side MISO |
+| MISO_DC1 | PA6 | Lower-bridge island MISO (DC1 ADC only) |
+| MISO_DC2 / MISO_CUR | PC3 | Upper-bridge island MISO — DC2 ADC and current ADC share this wire |
 | USART2_TX | PA2 | ST-LINK VCP TX, 115200 8N1 |
 | USART2_RX | PA3 | ST-LINK VCP RX, 115200 8N1 |
+| FAULT_OUT | PB5 | Active-low hardware fault flag (LOW = fault latched) |
 
-The three MCP3201 MISO lines are not shared because the isolated 6N137 outputs
-may not tri-state cleanly. The firmware clocks selected ADCs together and reads
-their GPIO inputs in parallel.
+This board uses **two** MCP3201 MISO return lines, not three. The lower-bridge
+island returns DC1 on PA6. The upper-bridge island carries both the DC2 ADC
+and the current ADC on a single wire-shared isolated return on PC3 — each ADC
+keeps its own chip select, and the firmware reads strictly one channel at a
+time (one CS asserted) so the two never drive the shared wire together.
+PC4 is unused.
+
+`FAULT_OUT` (PB5) is an active-low GPIO the firmware pulls LOW whenever a
+fault is latched and releases HIGH on return to IDLE — for an indicator LED
+or an external interlock. It corresponds to build guide v3.1 header pin 16.
 
 ## Sensing Modes
 | ID | Mode | Sensors used | Active protection |
@@ -98,15 +112,34 @@ Commands are line-based and terminated by `\n` or `\r\n`.
 | `HELP` | Any | Print command summary |
 | `MI <0.0-0.95>` | IDLE | Override modulation index |
 | `RESCAN` | IDLE, FAULT | Re-run the ADC self-test and re-mark sensors available |
-| `MOD STAIR\|PSC` | IDLE | Pick modulator (STAIR = 500 Hz staircase, PSC = phase-shifted carriers) |
+| `MOD STAIR\|PSC\|STAIR_ALT` | IDLE | Pick modulator (STAIR = 500 Hz staircase, PSC = phase-shifted carriers, STAIR_ALT = bridge-balanced staircase) |
 | `FSW <hz>` | IDLE | Set switching frequency (100..20000 Hz) |
 | `BRIDGE BOTH\|B1\|B2` | IDLE | Single-bridge test mode (inactive bridge freewheels) |
 | `FFUND <hz>` | IDLE | Set fundamental frequency (10..400 Hz) |
-| `CONFIG` | Any | Print the active PWM config as `$C,mod=...,fsw=...,bridge=...,ffund=...,mi=...` |
+| `VNOM <v>` | IDLE, FAULT | Set nominal per-bridge bus voltage (5..60 V); derives UV/OV/IMBAL thresholds |
+| `OC <a>` | IDLE, FAULT | Set overcurrent trip threshold (0.5..20 A) |
+| `CONFIG` | Any | Print active PWM (`$C`) and protection (`$P`) config lines |
 
 Accepted commands echo as `$A,<cmd>\r\n`. Rejected commands return
 `$E,<reason>\r\n`. PWM-config changes additionally emit a fresh `$C,...`
-line so the dashboard log always reflects the live configuration.
+line and protection-config changes emit a `$P,...` line, so the dashboard
+log always reflects the live configuration.
+
+### Configurable protection thresholds
+The DC-bus protection thresholds are not fixed — they scale with a single
+nominal bus voltage so the inverter can be bench-tested below the 50 V
+design point (e.g. a 12 V supply) without the undervoltage trip firing
+immediately. `VNOM <v>` sets the nominal voltage; the firmware derives:
+
+- undervoltage = `0.80 × VNOM`
+- overvoltage = `1.16 × VNOM`
+- imbalance = `0.20 × VNOM`
+
+At `VNOM 50` the derived thresholds are 40 / 58 / 10 V — the original
+fixed design values. At `VNOM 12` they become 9.6 / 13.9 / 2.4 V.
+Overcurrent (`OC`) is independent of VNOM because it is a load property.
+The active protection config is reported on the `$P` line:
+`$P,vnom=12.00,uv=9.60,ov=13.92,oc=15.00,imbal=2.40`.
 
 **Auto-start.** If no UART byte is received within 3 s after boot, the
 firmware issues its own `START` using the defaults from

@@ -90,6 +90,16 @@ static void GPIO_Config(void)
                         GPIO_OSPEEDER_OSPEEDR8);
     GPIOB->OSPEEDR |= GPIO_OSPEEDER_OSPEEDR0_0 | GPIO_OSPEEDER_OSPEEDR3_0 |
                       GPIO_OSPEEDER_OSPEEDR6_0 | GPIO_OSPEEDER_OSPEEDR8_0;
+
+    /* FAULT_OUT on PB5: push-pull GPIO output, active-low. Driven HIGH here
+     * (no fault) before the FSM starts; the FSM pulls it LOW on a latched
+     * fault and releases it HIGH again on return to IDLE. */
+    GPIOB->MODER &= ~GPIO_MODER_MODER5;
+    GPIOB->MODER |= GPIO_MODER_MODER5_0;            /* general-purpose output */
+    GPIOB->OTYPER &= ~GPIO_OTYPER_OT_5;             /* push-pull */
+    GPIOB->PUPDR &= ~GPIO_PUPDR_PUPDR5;
+    GPIOB->OSPEEDR &= ~GPIO_OSPEEDER_OSPEEDR5;      /* low speed is fine */
+    GPIOB->BSRR = (1u << FAULT_OUT_PIN);            /* HIGH = no fault */
 }
 
 static void NVIC_Config(void)

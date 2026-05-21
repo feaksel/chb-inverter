@@ -146,6 +146,22 @@ def parse_line(line: str, source: str = "serial") -> ParsedLine:
         return ParsedLine(kind="fault", raw=raw, message=message, checksum_valid=checksum_valid)
     if prefix == "H":
         return ParsedLine(kind="help", raw=raw, message=message, checksum_valid=checksum_valid)
+    if prefix == "C":
+        return ParsedLine(
+            kind="config",
+            raw=raw,
+            message=message,
+            fields=parse_status_fields(message),
+            checksum_valid=checksum_valid,
+        )
+    if prefix == "P":
+        return ParsedLine(
+            kind="protection",
+            raw=raw,
+            message=message,
+            fields=parse_status_fields(message),
+            checksum_valid=checksum_valid,
+        )
     return ParsedLine(kind="raw", raw=raw, message=payload, checksum_valid=checksum_valid)
 
 

@@ -66,11 +66,11 @@ class SimSource(BaseSource):
         elif text == "HELP":
             reply = ("START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 "
                      "RESCAN MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
-                     "FFUND <hz> CONFIG")
+                     "FFUND <hz> VNOM <v> OC <a> CONFIG")
         elif text == "RESCAN":
             reply = self.controller.rescan()
         elif text == "CONFIG":
-            reply = self.controller.config_summary()
+            reply = self.controller.config_summary() + " | " + self.controller.protection_summary()
         elif text.startswith("MODE "):
             try:
                 reply = self.controller.set_mode(mode_name_from_id(int(text.split()[1])))
@@ -95,6 +95,16 @@ class SimSource(BaseSource):
                 reply = self.controller.set_fundamental_freq(float(text.split()[1]))
             except (IndexError, ValueError):
                 reply = "FFUND_RANGE_10_TO_400"
+        elif text.startswith("VNOM "):
+            try:
+                reply = self.controller.set_nominal_voltage(float(text.split()[1]))
+            except (IndexError, ValueError):
+                reply = "VNOM_RANGE_5_TO_60"
+        elif text.startswith("OC "):
+            try:
+                reply = self.controller.set_overcurrent(float(text.split()[1]))
+            except (IndexError, ValueError):
+                reply = "OC_RANGE_0_5_TO_20"
         else:
             reply = "UNKNOWN_COMMAND"
         channel = "SIM-ACK" if reply == text or reply.startswith(("MODE ", "MI ")) else "SIM"

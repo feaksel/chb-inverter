@@ -13,16 +13,24 @@ from .models import (
     FAULT_UV,
     MODE_IDS,
     MODE_NAMES,
-    PROTECTION_IMBALANCE_V,
-    PROTECTION_OVERCURRENT_A,
-    PROTECTION_OVERVOLTAGE_V,
-    PROTECTION_UNDERVOLTAGE_V,
     TelemetryFrame,
 )
 
 
 VISUAL_PRECHARGE_MS = 350
 SCENARIO_TRIP_MS = 1200
+
+# Protection thresholds are derived from a nominal bus voltage (VNOM) by these
+# ratios — must match Core/Inc/protection.h PROTECTION_*_RATIO.
+PROTECTION_UV_RATIO = 0.80
+PROTECTION_OV_RATIO = 1.16
+PROTECTION_IMBAL_RATIO = 0.20
+PROTECTION_DEFAULT_VNOM = 50.0
+PROTECTION_DEFAULT_OC = 15.0
+PROTECTION_VNOM_MIN = 5.0
+PROTECTION_VNOM_MAX = 60.0
+PROTECTION_OC_MIN = 0.5
+PROTECTION_OC_MAX = 20.0
 
 
 @dataclass(frozen=True)
@@ -60,6 +68,8 @@ class SimController:
         self.switching_freq_hz = 500
         self.bridge_select = "BOTH"
         self.fundamental_freq_hz = 50.0
+        self.nominal_voltage = PROTECTION_DEFAULT_VNOM
+        self.overcurrent_a = PROTECTION_DEFAULT_OC
 
     def start(self) -> str:
         if self.state != "IDLE":
@@ -141,11 +151,43 @@ class SimController:
         self.fundamental_freq_hz = float(hz)
         return f"FFUND {hz:.2f}"
 
+    def set_nominal_voltage(self, volts: float) -> str:
+        if self.state not in ("IDLE", "FAULT"):
+            return "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT"
+        if volts < PROTECTION_VNOM_MIN or volts > PROTECTION_VNOM_MAX:
+            return "VNOM_RANGE_5_TO_60"
+        self.nominal_voltage = float(volts)
+        return f"VNOM {volts:.2f}"
+
+    def set_overcurrent(self, amps: float) -> str:
+        if self.state not in ("IDLE", "FAULT"):
+            return "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT"
+        if amps < PROTECTION_OC_MIN or amps > PROTECTION_OC_MAX:
+            return "OC_RANGE_0_5_TO_20"
+        self.overcurrent_a = float(amps)
+        return f"OC {amps:.2f}"
+
+    def undervoltage_threshold(self) -> float:
+        return self.nominal_voltage * PROTECTION_UV_RATIO
+
+    def overvoltage_threshold(self) -> float:
+        return self.nominal_voltage * PROTECTION_OV_RATIO
+
+    def imbalance_threshold(self) -> float:
+        return self.nominal_voltage * PROTECTION_IMBAL_RATIO
+
     def config_summary(self) -> str:
         return (
             f"mod={self.modulator},fsw={self.switching_freq_hz},"
             f"bridge={self.bridge_select},ffund={self.fundamental_freq_hz:.2f},"
             f"mi={self.modulation_index:.2f}"
+        )
+
+    def protection_summary(self) -> str:
+        return (
+            f"vnom={self.nominal_voltage:.2f},uv={self.undervoltage_threshold():.2f},"
+            f"ov={self.overvoltage_threshold():.2f},oc={self.overcurrent_a:.2f},"
+            f"imbal={self.imbalance_threshold():.2f}"
         )
 
     def run_scenario(self, key: str) -> str:
@@ -211,23 +253,28 @@ class SimController:
 
     def sensor_values(self) -> tuple[Optional[float], Optional[float], Optional[float]]:
         elapsed = self.ms - self.scenario_started_ms
+        # Sensor model scales with the nominal bus voltage so the simulator
+        # stays consistent when VNOM is changed (e.g. a 12 V bench test).
+        vn = self.nominal_voltage
         ripple = math.sin(self.ms / 450.0) * 0.24
         current = math.sin(self.ms / 180.0) * 3.2
-        vdc1: Optional[float] = 50.0 + ripple
-        vdc2: Optional[float] = 50.2 - ripple
+        vdc1: Optional[float] = vn + ripple
+        vdc2: Optional[float] = vn + 0.2 - ripple
         iout: Optional[float] = current
 
+        # Scenario fault values are expressed as ratios of VNOM / the OC
+        # threshold so the pre-baked demos still trip at any VNOM setting.
         if self.scenario_key == "undervoltage" and elapsed >= SCENARIO_TRIP_MS:
-            vdc1 = 37.5
-            vdc2 = 38.2
+            vdc1 = vn * 0.75
+            vdc2 = vn * 0.764
         elif self.scenario_key == "overvoltage" and elapsed >= SCENARIO_TRIP_MS:
-            vdc1 = 60.8
-            vdc2 = 60.1
+            vdc1 = vn * 1.216
+            vdc2 = vn * 1.202
         elif self.scenario_key == "overcurrent" and elapsed >= SCENARIO_TRIP_MS:
-            iout = 18.6 * (1.0 if math.sin(self.ms / 130.0) >= 0.0 else -1.0)
+            iout = self.overcurrent_a * 1.24 * (1.0 if math.sin(self.ms / 130.0) >= 0.0 else -1.0)
         elif self.scenario_key == "imbalance" and elapsed >= SCENARIO_TRIP_MS:
-            vdc1 = 56.0
-            vdc2 = 44.4
+            vdc1 = vn * 1.12
+            vdc2 = vn * 0.888
         elif self.scenario_key == "sensor_lost" and elapsed >= SCENARIO_TRIP_MS:
             vdc2 = None
         elif self.scenario_key == "open_loop":
@@ -235,7 +282,7 @@ class SimController:
             vdc2 = None
             iout = None
         elif self.scenario_key == "mode_demotion":
-            vdc1 = 50.0 + ripple
+            vdc1 = vn + ripple
             vdc2 = None
             iout = None
 
@@ -261,13 +308,17 @@ class SimController:
         if self.scenario_key == "sensor_lost" and self.ms - self.scenario_started_ms >= SCENARIO_TRIP_MS:
             return FAULT_SENSOR_LOST
 
+        uv = self.undervoltage_threshold()
+        ov = self.overvoltage_threshold()
+        imbal = self.imbalance_threshold()
+
         def check_dc(value: Optional[float]) -> int:
             if value is None:
                 return FAULT_NONE
             result = FAULT_NONE
-            if value < PROTECTION_UNDERVOLTAGE_V:
+            if value < uv:
                 result |= FAULT_UV
-            if value > PROTECTION_OVERVOLTAGE_V:
+            if value > ov:
                 result |= FAULT_OV
             return result
 
@@ -276,10 +327,10 @@ class SimController:
         if self.mode in ("FULL", "DC_ONLY", "DC2"):
             faults |= check_dc(vdc2)
         if iout is not None and self.mode in ("FULL", "CUR_ONLY", "DC1", "DC2"):
-            if abs(iout) > PROTECTION_OVERCURRENT_A:
+            if abs(iout) > self.overcurrent_a:
                 faults |= FAULT_OC
         if self.mode in ("FULL", "DC_ONLY") and vdc1 is not None and vdc2 is not None:
-            if abs(vdc1 - vdc2) > PROTECTION_IMBALANCE_V:
+            if abs(vdc1 - vdc2) > imbal:
                 faults |= FAULT_IMBAL
         return faults
 

@@ -138,6 +138,55 @@ class SimulatorTests(unittest.TestCase):
         self.assertEqual(sim.set_modulator("STAIR"), "MOD STAIR")
         self.assertEqual(sim.modulator, "STAIR")
 
+    def test_protection_config_defaults_and_derived_thresholds(self) -> None:
+        sim = SimController()
+        self.assertAlmostEqual(sim.nominal_voltage, 50.0)
+        self.assertAlmostEqual(sim.overcurrent_a, 15.0)
+        # At VNOM=50 the derived thresholds reproduce the original fixed design.
+        self.assertAlmostEqual(sim.undervoltage_threshold(), 40.0)
+        self.assertAlmostEqual(sim.overvoltage_threshold(), 58.0)
+        self.assertAlmostEqual(sim.imbalance_threshold(), 10.0)
+
+    def test_set_nominal_voltage_scales_thresholds(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.set_nominal_voltage(12.0), "VNOM 12.00")
+        self.assertAlmostEqual(sim.nominal_voltage, 12.0)
+        self.assertAlmostEqual(sim.undervoltage_threshold(), 9.6)
+        self.assertAlmostEqual(sim.overvoltage_threshold(), 13.92)
+        self.assertAlmostEqual(sim.imbalance_threshold(), 2.4)
+
+    def test_protection_config_range_rejection(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.set_nominal_voltage(3.0), "VNOM_RANGE_5_TO_60")
+        self.assertEqual(sim.set_nominal_voltage(80.0), "VNOM_RANGE_5_TO_60")
+        self.assertEqual(sim.set_overcurrent(0.1), "OC_RANGE_0_5_TO_20")
+        self.assertEqual(sim.set_overcurrent(25.0), "OC_RANGE_0_5_TO_20")
+        # Rejected values leave the defaults intact.
+        self.assertAlmostEqual(sim.nominal_voltage, 50.0)
+        self.assertAlmostEqual(sim.overcurrent_a, 15.0)
+
+    def test_low_voltage_run_does_not_trip_after_vnom_set(self) -> None:
+        # The whole point of VNOM: a 12 V bench test must not trip UV.
+        sim = SimController()
+        self.assertEqual(sim.set_nominal_voltage(12.0), "VNOM 12.00")
+        self.assertEqual(sim.start(), "START")
+        frame = sim.step(SCENARIO_TRIP_MS + VISUAL_PRECHARGE_MS)
+        self.assertEqual(frame.state, "RUN")
+        self.assertEqual(frame.fault_bits, FAULT_NONE)
+        # And the sensor model now reports ~12 V, not ~50 V.
+        self.assertIsNotNone(frame.vdc1)
+        self.assertLess(abs(frame.vdc1 - 12.0), 1.0)
+
+    def test_protection_config_requires_idle_or_fault(self) -> None:
+        sim = SimController()
+        sim.start()
+        sim.step(VISUAL_PRECHARGE_MS + 50)  # now in RUN
+        self.assertEqual(sim.state, "RUN")
+        self.assertEqual(sim.set_nominal_voltage(12.0),
+                         "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT")
+        self.assertEqual(sim.set_overcurrent(10.0),
+                         "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT")
+
     def test_pwm_config_rejects_out_of_range(self) -> None:
         sim = SimController()
         self.assertEqual(sim.set_modulator("BOGUS"), "PWM_CONFIG_REJECTED")

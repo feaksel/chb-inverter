@@ -373,7 +373,7 @@ to drive *only* the bridge under test, and run STAIR at the default
      50 Hz fundamental rhythm (NOT 500 Hz — STAIR holds each level for
      many PWM periods).
    - **Q2 LS, Q4 LS:** complementary to their HS partners. When HS is
-     high, LS is low, and vice versa. Visible 2 µs dead-time on every
+     high, LS is low, and vice versa. Visible 3 µs dead-time on every
      transition.
 4. Measure DC current draw from the 15 V supply: should be ~20–50 mA per
    bridge depending on switching activity.
@@ -381,7 +381,7 @@ to drive *only* the bridge under test, and run STAIR at the default
 
 **Verify:**
 - [ ] All 4 gates show clean square waves, no ringing, no missing edges.
-- [ ] Dead-time visible on the LS-to-HS and HS-to-LS transitions (~2 µs).
+- [ ] Dead-time visible on the LS-to-HS and HS-to-LS transitions (~3 µs).
 - [ ] No simultaneous HS+LS on the same leg at any point (would be
       shoot-through).
 - [ ] Bridge 2's gates (Q5–Q8) should be **silent** — all four sit in the
@@ -484,20 +484,29 @@ destroy anything.
 (current-limited to 2 A). Load = 100 Ω resistor or 60 W incandescent
 bulb in series with the ACS712.
 
+> ⚠️ **Set `VNOM` to your test bus voltage before `START`.** The default
+> protection thresholds assume a 50 V bus (UV = 40 V). At a 10 V test
+> bus the firmware trips undervoltage immediately and never leaves
+> PRECHARGE. `VNOM 10` rescales UV/OV/IMBAL to 8 / 11.6 / 2 V. This
+> applies to every powered phase from here on — always match `VNOM` to
+> the bus voltage you are about to apply.
+
 **Steps:**
 1. Reset Nucleo, cancel auto-start.
-2. `CONFIG` — confirm `mod=STAIR,fsw=500,bridge=BOTH,ffund=50.00,mi=0.95`.
-3. `STATUS` — confirm both DC buses read ~10 V, iout ≈ 0 A.
-4. `START`. Look for `$A,START`, then `$A,RUN` after ~6 ms precharge.
-5. Scope the AC output (Node_X1 to Node_Y2) → expect a 5-level
+2. `VNOM 10` — rescale protection for the 10 V test bus. Confirm the
+   `$P` line shows `uv=8.00,ov=11.60,imbal=2.00`.
+3. `CONFIG` — confirm `mod=STAIR,fsw=500,bridge=BOTH,ffund=50.00,mi=0.95`.
+4. `STATUS` — confirm both DC buses read ~10 V, iout ≈ 0 A.
+5. `START`. Look for `$A,START`, then `$A,RUN` after ~6 ms precharge.
+6. Scope the AC output (Node_X1 to Node_Y2) → expect a 5-level
    staircase swinging between roughly ±20 V at 50 Hz.
-6. Watch telemetry. `iout` should swing sinusoidally with peak ~0.2 A
+7. Watch telemetry. `iout` should swing sinusoidally with peak ~0.2 A
    (for 100 Ω load, 20 V/100 Ω = 0.2 A).
-7. Run 5 minutes. Touch-test the bridge MOSFET heatsinks (with the back
+8. Run 5 minutes. Touch-test the bridge MOSFET heatsinks (with the back
    of your hand — never grip): you should already be able to feel that
    bridge 1's heatsink runs noticeably warmer than bridge 2's. **This is
    the concern #8 imbalance** that PSC fixes.
-8. `STOP`.
+9. `STOP`.
 
 **Verify:**
 - [ ] AC output is a clean 5-level staircase, not 3-level (would mean
@@ -635,7 +644,7 @@ oscillate here, no point applying high voltage.
    - Clean rising/falling edges, ~50–100 ns rise time through the 22 Ω
      gate resistor.
    - **No ringing** during the flat ON or OFF portions.
-   - Dead-time gap visible (~2 µs) on every complementary transition.
+   - Dead-time gap visible (~3 µs) on every complementary transition.
 7. Watch the gate-drive 15 V supply current — should be < 50 mA per
    bridge at MI 0.3.
 8. `STOP`. Disconnect 15 V if you're going to walk away.
@@ -803,8 +812,10 @@ Once Steps A–F all pass cleanly:
   SPI reads. Move SPI wires away from the H-bridge wires; route SPI
   ground separately back to the safe-side ground.
 - **MOSFET smoking** — shoot-through. Verify dead-time on scope at the
-  exact moment of failure; may need to increase from 2 µs to 3 µs in
-  [pwm_modulator.c](Core/Src/pwm_modulator.c) `PWM_DEAD_TIME_DTG`.
+  exact moment of failure; dead-time is already 3 µs (`TIM_DTG_3US_AT_64MHZ`)
+  for the IRFB4110, but if the breadboard gate drive is slow you may need
+  to go to 4 µs — change `PWM_DEAD_TIME_DTG` to `TIM_DTG_4US_AT_64MHZ` in
+  [pwm_modulator.c](Core/Src/pwm_modulator.c) and reflash.
 - **No 5-level output despite `lock=OK`** — phase shift good in
   firmware but breadboard parasitic L/C distorting the cascade. Add
   a snubber across each MOSFET drain-source (already in BOM:
@@ -954,8 +965,10 @@ troubleshooting steps don't recover 5-level. STAIR_ALT preserves the
 - `STOP`, `FSW 10000`, `START` → 10 min, log thermals.
 
 Higher FSW = lower output ripple but higher switching loss. Plot total
-loss vs FSW; the minimum is your sweet spot. Typical IRFZ44N + TLP250
-will be around 5–10 kHz.
+loss vs FSW; the minimum is your sweet spot. With IRFB4110 (low 4.5 mOhm
+Rds(on) but ~150 nC gate charge) + TLP250, expect the sweet spot around
+5–10 kHz — conduction loss is very low so switching loss dominates as
+FSW rises.
 
 **Verify per step:**
 - [ ] Output looks correct (5-level if PSC + BOTH, 3-level if single

@@ -2,6 +2,18 @@
 
 static uint8_t g_latched_faults = FAULT_NONE;
 
+/* Runtime protection thresholds. Initialised to the values derived from the
+ * 50 V default nominal bus voltage, so power-on behavior matches the original
+ * fixed design (UV 40 / OV 58 / IMBAL 10 / OC 15). Updated by the runtime
+ * setters below. Plain statics — only ever touched from main-loop context
+ * (FSM_Run → handle_sensing → Protection_Check, and the UART handlers),
+ * never from an ISR, so no volatile / atomicity concern. */
+static float g_vnom_v  = PROTECTION_DEFAULT_VNOM_V;
+static float g_uv_v    = PROTECTION_DEFAULT_VNOM_V * PROTECTION_UV_RATIO;
+static float g_ov_v    = PROTECTION_DEFAULT_VNOM_V * PROTECTION_OV_RATIO;
+static float g_imbal_v = PROTECTION_DEFAULT_VNOM_V * PROTECTION_IMBAL_RATIO;
+static float g_oc_a    = PROTECTION_DEFAULT_OVERCURRENT_A;
+
 /* Per-bit debounce counters. A fault must be seen for PROTECTION_TRIP_COUNT
  * consecutive Protection_Check calls (== consecutive 1 kHz sensor scans) before
  * it is reported. Any clean read resets the corresponding counter. */
@@ -20,10 +32,10 @@ static uint8_t check_dc_channel(const sensor_channel_t *channel)
     uint8_t faults = FAULT_NONE;
     float volts = Sensing_RawToVdc(channel->last_raw);
 
-    if (volts < PROTECTION_UNDERVOLTAGE_V) {
+    if (volts < g_uv_v) {
         faults |= FAULT_UV;
     }
-    if (volts > PROTECTION_OVERVOLTAGE_V) {
+    if (volts > g_ov_v) {
         faults |= FAULT_OV;
     }
     return faults;
@@ -33,7 +45,7 @@ static uint8_t check_current_channel(const sensor_channel_t *channel)
 {
     float amps = Sensing_RawToCurrent(channel->last_raw);
 
-    return (abs_f(amps) > PROTECTION_OVERCURRENT_A) ? FAULT_OC : FAULT_NONE;
+    return (abs_f(amps) > g_oc_a) ? FAULT_OC : FAULT_NONE;
 }
 
 static uint8_t instant_faults(const sensing_data_t *data, sensing_mode_t mode)
@@ -46,7 +58,7 @@ static uint8_t instant_faults(const sensing_data_t *data, sensing_mode_t mode)
         faults |= check_dc_channel(&data->dc2);
         faults |= check_current_channel(&data->current);
         if (abs_f(Sensing_RawToVdc(data->dc1.last_raw) -
-                  Sensing_RawToVdc(data->dc2.last_raw)) > PROTECTION_IMBALANCE_V) {
+                  Sensing_RawToVdc(data->dc2.last_raw)) > g_imbal_v) {
             faults |= FAULT_IMBAL;
         }
         break;
@@ -54,7 +66,7 @@ static uint8_t instant_faults(const sensing_data_t *data, sensing_mode_t mode)
         faults |= check_dc_channel(&data->dc1);
         faults |= check_dc_channel(&data->dc2);
         if (abs_f(Sensing_RawToVdc(data->dc1.last_raw) -
-                  Sensing_RawToVdc(data->dc2.last_raw)) > PROTECTION_IMBALANCE_V) {
+                  Sensing_RawToVdc(data->dc2.last_raw)) > g_imbal_v) {
             faults |= FAULT_IMBAL;
         }
         break;
@@ -141,3 +153,30 @@ uint8_t Protection_GetLatched(void)
 {
     return g_latched_faults;
 }
+
+uint8_t Protection_SetNominalVoltage(float vnom_v)
+{
+    if ((vnom_v < PROTECTION_VNOM_MIN_V) || (vnom_v > PROTECTION_VNOM_MAX_V)) {
+        return 0u;
+    }
+    g_vnom_v  = vnom_v;
+    g_uv_v    = vnom_v * PROTECTION_UV_RATIO;
+    g_ov_v    = vnom_v * PROTECTION_OV_RATIO;
+    g_imbal_v = vnom_v * PROTECTION_IMBAL_RATIO;
+    return 1u;
+}
+
+uint8_t Protection_SetOvercurrent(float amps)
+{
+    if ((amps < PROTECTION_OVERCURRENT_MIN_A) || (amps > PROTECTION_OVERCURRENT_MAX_A)) {
+        return 0u;
+    }
+    g_oc_a = amps;
+    return 1u;
+}
+
+float Protection_GetNominalVoltage(void) { return g_vnom_v; }
+float Protection_GetUndervoltage(void)   { return g_uv_v; }
+float Protection_GetOvervoltage(void)    { return g_ov_v; }
+float Protection_GetImbalance(void)      { return g_imbal_v; }
+float Protection_GetOvercurrent(void)    { return g_oc_a; }
