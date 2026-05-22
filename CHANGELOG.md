@@ -18,6 +18,52 @@ Adds a second modulator alongside the bench-validated STAIR, makes the PWM
 runtime-configurable from UART/dashboard, and adds an auto-start path so
 the system runs standalone with safe defaults when no UART is connected.
 
+### ADCRAW diagnostic + manual TRIP command
+Two bringup-support commands added after the PCB sensing came up dead:
+
+- **`ADCRAW`** — does one raw MCP3201 read and reports the actual 12-bit
+  counts (`$R,dc1=N,dc2=N,cur=N`, 0..4095) instead of only the
+  available/unavailable verdict. Lets the operator see whether a MISO
+  line is stuck (constant 4095/0) or actually carrying data, without a
+  scope. Honors the current `SPIINV` mask. Allowed in any state.
+- **`TRIP`** — operator-forced fault. Latches a new `FAULT_MANUAL`
+  (0x20) bit, enters the FAULT state, disables PWM, and drives the
+  FAULT_OUT pin low — exactly like a real protection trip. Lets the
+  FAULT behavior and the FAULT_OUT hardware pin be demonstrated even
+  when the sensors are not yet readable (so no real UV/OV/OC trip can
+  be produced). Allowed from IDLE / PRECHARGE / RUN; `CLEAR` exits it
+  normally. New dashboard button "FORCE FAULT". `FAULT_MANUAL` shows as
+  `MANUAL` in `$F` fault reports and the dashboard fault badge.
+
+### Runtime-configurable SPI line inversion (SPIINV)
+During PCB bringup the sensing came up dead (all channels OPEN) even with
+the island powered. Root-cause candidate: the 6N137 optocouplers on the
+SCK / CS / MISO lines **invert** (LED on → output low), and the firmware
+drove/read those lines as if directly connected — so the MCP3201 saw an
+inverted clock, a backwards chip-select, and inverted data.
+
+Rather than hard-code a polarity, the inversion is now **runtime
+configurable** so it can be flipped from the dashboard without reflashing
+per attempt:
+- **`SPIINV <0..7>`** UART command / **Set SPIINV** dashboard control.
+  Bitmask: bit 0 = SCK, bit 1 = CS, bit 2 = MISO. `0` = direct drive
+  (unchanged default), `7` = all inverted (standard one-6N137-per-line
+  wiring).
+- Setting it **auto-runs the ADC self-test** (same follow-up as `RESCAN`)
+  so the operator sees at once whether the sensors come alive.
+- Allowed in IDLE or FAULT.
+- The active mask appears in the `STATUS` line as `spiinv=0xN`.
+- `SPI_DEFAULT_INVERT_MASK` in [spi_mcp3201.h](Core/Inc/spi_mcp3201.h)
+  sets the power-on default — leave at 0 until the bench confirms the
+  inverted mode, then set to 7.
+
+Firmware: [spi_mcp3201.c](Core/Src/spi_mcp3201.c) gains invert-aware
+`sck_idle`/`sck_active`/`cs_select`/`cs_deselect` helpers and a per-bit
+MISO read inversion; `SPI_MCP3201_SetInvert`/`GetInvert` accessors;
+[fsm.c](Core/Src/fsm.c) `handle_spiinv`; STATUS line `spiinv=` field.
+Dashboard: SPIINV combo in the controls panel, sim setter, 2 new tests
+(27 total, all passing).
+
 ### MISO topology change (2 shared lines) + hardware FAULT_OUT pin
 User's PCB does not match the firmware's original 3-independent-MISO
 assumption. The actual board has **two** MCP3201 data-return lines:

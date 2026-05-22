@@ -261,11 +261,13 @@ class DashboardWindow(QMainWindow):
             ("START", self._send_start),
             ("STOP", lambda: self._send_command("STOP")),
             ("CLEAR", lambda: self._send_command("CLEAR")),
+            ("FORCE FAULT", lambda: self._send_command("TRIP")),
         ]
         query_commands = [
             ("STATUS", lambda: self._send_command("STATUS")),
             ("HELP", lambda: self._send_command("HELP")),
             ("RESCAN", lambda: self._send_command("RESCAN")),
+            ("ADCRAW", lambda: self._send_command("ADCRAW")),
             ("CONFIG", lambda: self._send_command("CONFIG")),
         ]
         for command_set in (action_commands, query_commands):
@@ -377,6 +379,26 @@ class DashboardWindow(QMainWindow):
         oc_row.addWidget(self.oc_btn)
         layout.addLayout(oc_row)
 
+        spiinv_row = QHBoxLayout()
+        self.spiinv_combo = QComboBox()
+        # bit0=SCK, bit1=CS, bit2=MISO. 0 = direct, 7 = all inverted (6N137).
+        self.spiinv_combo.addItems([
+            "0 - direct (no inversion)",
+            "7 - all inverted (6N137)",
+            "1 - SCK only",
+            "2 - CS only",
+            "4 - MISO only",
+            "3 - SCK+CS",
+            "5 - SCK+MISO",
+            "6 - CS+MISO",
+        ])
+        self.spiinv_btn = QPushButton("Set SPIINV")
+        self.spiinv_btn.clicked.connect(self._send_spiinv)
+        spiinv_row.addWidget(QLabel("SPI invert"))
+        spiinv_row.addWidget(self.spiinv_combo, 1)
+        spiinv_row.addWidget(self.spiinv_btn)
+        layout.addLayout(spiinv_row)
+
         return group
 
     def _send_mod(self) -> None:
@@ -387,6 +409,11 @@ class DashboardWindow(QMainWindow):
 
     def _send_oc(self) -> None:
         self._send_command(f"OC {self.oc_spin.value():.2f}")
+
+    def _send_spiinv(self) -> None:
+        # The combo item text starts with the numeric mask, e.g. "7 - all ...".
+        mask = self.spiinv_combo.currentText().split()[0]
+        self._send_command(f"SPIINV {mask}")
 
     def _send_fsw(self) -> None:
         text = self.fsw_combo.currentText().strip()

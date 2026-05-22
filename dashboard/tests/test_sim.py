@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from visual_twin_dashboard.models import (  # noqa: E402
     FAULT_IMBAL,
+    FAULT_MANUAL,
     FAULT_NONE,
     FAULT_OC,
     FAULT_OV,
@@ -186,6 +187,44 @@ class SimulatorTests(unittest.TestCase):
                          "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT")
         self.assertEqual(sim.set_overcurrent(10.0),
                          "PROTECTION_CONFIG_REQUIRES_IDLE_OR_FAULT")
+
+    def test_manual_trip_enters_fault_and_clears(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.trip(), "TRIP")
+        self.assertEqual(sim.state, "FAULT")
+        self.assertTrue(sim.fault_bits & FAULT_MANUAL)
+        # A second trip is rejected — already faulted.
+        self.assertEqual(sim.trip(), "ALREADY_IN_FAULT")
+        # CLEAR exits the manual fault normally (no real fault condition).
+        self.assertEqual(sim.clear(), "CLEAR")
+        self.assertEqual(sim.state, "IDLE")
+        self.assertEqual(sim.fault_bits, FAULT_NONE)
+
+    def test_manual_trip_from_run(self) -> None:
+        sim = SimController()
+        sim.start()
+        sim.step(VISUAL_PRECHARGE_MS + 50)
+        self.assertEqual(sim.state, "RUN")
+        self.assertEqual(sim.trip(), "TRIP")
+        self.assertEqual(sim.state, "FAULT")
+        self.assertTrue(sim.fault_bits & FAULT_MANUAL)
+
+    def test_spi_invert_setter(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.spi_invert, 0)
+        self.assertEqual(sim.set_spi_invert(7), "SPIINV 7")
+        self.assertEqual(sim.spi_invert, 7)
+        self.assertEqual(sim.set_spi_invert(0), "SPIINV 0")
+        self.assertEqual(sim.spi_invert, 0)
+
+    def test_spi_invert_range_and_state_rejection(self) -> None:
+        sim = SimController()
+        self.assertEqual(sim.set_spi_invert(8), "SPIINV_RANGE_0_TO_7")
+        self.assertEqual(sim.set_spi_invert(-1), "SPIINV_RANGE_0_TO_7")
+        self.assertEqual(sim.spi_invert, 0)  # rejected values leave it unchanged
+        sim.start()
+        sim.step(VISUAL_PRECHARGE_MS + 50)  # RUN
+        self.assertEqual(sim.set_spi_invert(7), "SPIINV_REQUIRES_IDLE_OR_FAULT")
 
     def test_pwm_config_rejects_out_of_range(self) -> None:
         sim = SimController()

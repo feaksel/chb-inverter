@@ -48,6 +48,65 @@ static void cs_reset(uint8_t mask)
     }
 }
 
+/* Runtime SPI line-inversion mask. When a bit is set, that line is driven /
+ * read inverted so an inverting optocoupler in the path is cancelled out. */
+static uint8_t g_spi_invert = SPI_DEFAULT_INVERT_MASK;
+
+/* SCK idle / active levels. Non-inverted: idle low, active high (SPI mode
+ * 0,0). Inverted: the firmware drives the opposite GPIO level so that, after
+ * the 6N137 flips it, the MCP3201 still sees a textbook idle-low clock. */
+static void sck_idle(void)
+{
+    if ((g_spi_invert & SPI_INVERT_SCK) != 0u) {
+        gpio_set(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+    } else {
+        gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+    }
+}
+
+static void sck_active(void)
+{
+    if ((g_spi_invert & SPI_INVERT_SCK) != 0u) {
+        gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+    } else {
+        gpio_set(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+    }
+}
+
+/* Chip-select assert (chip selected) / deassert (chip idle). MCP3201 CS is
+ * active-low at the chip; with an inverting opto in the path the firmware
+ * drives the opposite GPIO level. */
+static void cs_select(uint8_t bit)
+{
+    if ((g_spi_invert & SPI_INVERT_CS) != 0u) {
+        cs_set(bit);
+    } else {
+        cs_reset(bit);
+    }
+}
+
+static void cs_deselect(uint8_t bit)
+{
+    if ((g_spi_invert & SPI_INVERT_CS) != 0u) {
+        cs_reset(bit);
+    } else {
+        cs_set(bit);
+    }
+}
+
+void SPI_MCP3201_SetInvert(uint8_t mask)
+{
+    g_spi_invert = (uint8_t)(mask & SPI_INVERT_ALL);
+    /* Re-apply idle states so the lines sit correctly for the new polarity. */
+    sck_idle();
+    cs_deselect(SENSOR_MASK_ALL);
+}
+
+uint8_t SPI_MCP3201_GetInvert(void)
+{
+    return g_spi_invert;
+}
+
 void SPI_MCP3201_Init(void)
 {
     RCC->AHBENR |= RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOCEN;
@@ -72,8 +131,8 @@ void SPI_MCP3201_Init(void)
     GPIOC->OSPEEDR &= ~(GPIO_OSPEEDER_OSPEEDR0 | GPIO_OSPEEDER_OSPEEDR1 | GPIO_OSPEEDER_OSPEEDR2);
     GPIOC->OSPEEDR |= GPIO_OSPEEDER_OSPEEDR0_0 | GPIO_OSPEEDER_OSPEEDR1_0 | GPIO_OSPEEDER_OSPEEDR2_0;
 
-    gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
-    cs_set(SENSOR_MASK_ALL);
+    sck_idle();
+    cs_deselect(SENSOR_MASK_ALL);
 }
 
 /* Read one MCP3201 with exactly ONE chip-select asserted at a time, sampling
@@ -98,23 +157,27 @@ static uint16_t read_one_channel(uint8_t cs_bit,
 {
     uint16_t raw = 0u;
     uint32_t miso_bit = pin_mask(miso_pin);
+    uint16_t miso_inv = ((g_spi_invert & SPI_INVERT_MISO) != 0u) ? 1u : 0u;
 
-    gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
-    cs_reset(cs_bit);              /* assert this one chip-select only */
+    sck_idle();
+    cs_select(cs_bit);             /* assert this one chip-select only */
     delay_half_period();
 
     for (uint32_t i = 0; i < 16u; i++) {
-        gpio_set(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+        sck_active();
         delay_half_period();
 
         raw <<= 1;
-        raw |= ((miso_port->IDR & miso_bit) != 0u) ? 1u : 0u;
+        {
+            uint16_t bit = ((miso_port->IDR & miso_bit) != 0u) ? 1u : 0u;
+            raw |= (uint16_t)(bit ^ miso_inv);   /* cancel an inverting opto */
+        }
 
-        gpio_reset(MCP3201_SCK_PORT, MCP3201_SCK_PIN);
+        sck_idle();
         delay_half_period();
     }
 
-    cs_set(cs_bit);                /* deassert before the next channel */
+    cs_deselect(cs_bit);           /* deassert before the next channel */
     delay_half_period();
 
     return (uint16_t)((raw >> 3) & 0x0FFFu);

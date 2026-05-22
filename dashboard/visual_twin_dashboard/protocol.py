@@ -162,6 +162,14 @@ def parse_line(line: str, source: str = "serial") -> ParsedLine:
             fields=parse_status_fields(message),
             checksum_valid=checksum_valid,
         )
+    if prefix == "R":
+        return ParsedLine(
+            kind="adcraw",
+            raw=raw,
+            message=message,
+            fields=parse_status_fields(message),
+            checksum_valid=checksum_valid,
+        )
     return ParsedLine(kind="raw", raw=raw, message=payload, checksum_valid=checksum_valid)
 
 

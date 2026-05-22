@@ -44,6 +44,10 @@
 #define FAULT_OC 0x04u
 #define FAULT_IMBAL 0x08u
 #define FAULT_SENSOR_LOST 0x10u
+/* Operator-forced fault (UART command TRIP). Not produced by Protection_Check;
+ * latched directly by the FSM so the FAULT state and FAULT_OUT pin can be
+ * demonstrated without a real sensor trip. */
+#define FAULT_MANUAL 0x20u
 
 uint8_t Protection_Check(const sensing_data_t *data, sensing_mode_t mode);
 void Protection_Latch(uint8_t faults);

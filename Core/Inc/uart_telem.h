@@ -22,6 +22,9 @@ typedef enum {
     UART_CMD_CONFIG,    /* print current PWM + protection config */
     UART_CMD_VNOM,      /* set nominal bus voltage (derives UV/OV/IMBAL) */
     UART_CMD_OC,        /* set overcurrent trip threshold (A) */
+    UART_CMD_SPIINV,    /* set MCP3201 SPI line-inversion mask (0..7) */
+    UART_CMD_ADCRAW,    /* one-shot raw MCP3201 read, diagnostic */
+    UART_CMD_TRIP,      /* operator-forced fault (demo / test) */
     UART_CMD_INVALID
 } uart_cmd_type_t;
 
@@ -61,6 +64,7 @@ void UART_SendProtectionConfig(float nominal_v,
                                float overvoltage_v,
                                float overcurrent_a,
                                float imbalance_v);
+void UART_SendAdcRaw(uint16_t dc1, uint16_t dc2, uint16_t current);
 void UART_SendStatus(uint32_t ms,
                      fsm_state_t state,
                      sensing_mode_t mode,

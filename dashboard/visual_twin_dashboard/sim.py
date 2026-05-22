@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 from .models import (
     FAULT_IMBAL,
+    FAULT_MANUAL,
     FAULT_NONE,
     FAULT_OC,
     FAULT_OV,
@@ -70,6 +71,7 @@ class SimController:
         self.fundamental_freq_hz = 50.0
         self.nominal_voltage = PROTECTION_DEFAULT_VNOM
         self.overcurrent_a = PROTECTION_DEFAULT_OC
+        self.spi_invert = 0
 
     def start(self) -> str:
         if self.state != "IDLE":
@@ -119,6 +121,17 @@ class SimController:
             self.scenario_started_ms = self.ms
         return "RESCAN"
 
+    def trip(self) -> str:
+        """Operator-forced fault — mirrors the firmware TRIP command."""
+        if self.state == "FAULT":
+            return "ALREADY_IN_FAULT"
+        if self.state == "BOOT":
+            return "TRIP_NOT_ALLOWED_IN_BOOT"
+        self.state = "FAULT"
+        self.fault_bits |= FAULT_MANUAL
+        self.precharge_until_ms = None
+        return "TRIP"
+
     def set_modulator(self, modulator: str) -> str:
         if self.state != "IDLE":
             return "PWM_CONFIG_REQUIRES_IDLE"
@@ -166,6 +179,14 @@ class SimController:
             return "OC_RANGE_0_5_TO_20"
         self.overcurrent_a = float(amps)
         return f"OC {amps:.2f}"
+
+    def set_spi_invert(self, mask: int) -> str:
+        if self.state not in ("IDLE", "FAULT"):
+            return "SPIINV_REQUIRES_IDLE_OR_FAULT"
+        if mask < 0 or mask > 7:
+            return "SPIINV_RANGE_0_TO_7"
+        self.spi_invert = int(mask)
+        return f"SPIINV {int(mask)}"
 
     def undervoltage_threshold(self) -> float:
         return self.nominal_voltage * PROTECTION_UV_RATIO

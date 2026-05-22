@@ -84,6 +84,23 @@ PC4 is unused.
 fault is latched and releases HIGH on return to IDLE — for an indicator LED
 or an external interlock. It corresponds to build guide v3.1 header pin 16.
 
+### SPI line inversion (`SPIINV`)
+Each MCP3201 SPI line crosses the isolation barrier through a 6N137
+optocoupler, which **inverts** (LED on → output low). If your board has an
+odd number of inverting stages in a line, the firmware must drive/read that
+line inverted to cancel it. `SPIINV <mask>` sets this at runtime — bit 0 =
+SCK, bit 1 = CS, bit 2 = MISO:
+
+- `SPIINV 0` — direct drive, no inversion (power-on default)
+- `SPIINV 7` — all three lines inverted (standard one-6N137-per-line wiring)
+- other values invert individual lines for unusual mixed wiring
+
+`SPIINV` also auto-runs the sensor self-test (like `RESCAN`) so you see
+immediately whether the sensors come alive. The active mask is reported in
+the `STATUS` line as `spiinv=0xN`. Once you know the right value, set
+`SPI_DEFAULT_INVERT_MASK` in [Core/Inc/spi_mcp3201.h](Core/Inc/spi_mcp3201.h)
+to make it the power-on default.
+
 ## Sensing Modes
 | ID | Mode | Sensors used | Active protection |
 |---:|---|---|---|
@@ -118,6 +135,9 @@ Commands are line-based and terminated by `\n` or `\r\n`.
 | `FFUND <hz>` | IDLE | Set fundamental frequency (10..400 Hz) |
 | `VNOM <v>` | IDLE, FAULT | Set nominal per-bridge bus voltage (5..60 V); derives UV/OV/IMBAL thresholds |
 | `OC <a>` | IDLE, FAULT | Set overcurrent trip threshold (0.5..20 A) |
+| `SPIINV <0..7>` | IDLE, FAULT | Set MCP3201 SPI line-inversion mask, then auto-rescan sensors |
+| `ADCRAW` | Any | One-shot raw MCP3201 read; reports `$R,dc1=N,dc2=N,cur=N` (0..4095) |
+| `TRIP` | IDLE, PRECHARGE, RUN | Operator-forced fault — latches `FAULT_MANUAL`, enters FAULT, drives FAULT_OUT low |
 | `CONFIG` | Any | Print active PWM (`$C`) and protection (`$P`) config lines |
 
 Accepted commands echo as `$A,<cmd>\r\n`. Rejected commands return

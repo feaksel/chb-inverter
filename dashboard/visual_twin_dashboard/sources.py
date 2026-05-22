@@ -66,9 +66,13 @@ class SimSource(BaseSource):
         elif text == "HELP":
             reply = ("START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 "
                      "RESCAN MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
-                     "FFUND <hz> VNOM <v> OC <a> CONFIG")
+                     "FFUND <hz> VNOM <v> OC <a> SPIINV 0..7 ADCRAW TRIP CONFIG")
         elif text == "RESCAN":
             reply = self.controller.rescan()
+        elif text == "TRIP":
+            reply = self.controller.trip()
+        elif text == "ADCRAW":
+            reply = "ADCRAW"   # hardware diagnostic; simulator has no real ADCs
         elif text == "CONFIG":
             reply = self.controller.config_summary() + " | " + self.controller.protection_summary()
         elif text.startswith("MODE "):
@@ -105,6 +109,11 @@ class SimSource(BaseSource):
                 reply = self.controller.set_overcurrent(float(text.split()[1]))
             except (IndexError, ValueError):
                 reply = "OC_RANGE_0_5_TO_20"
+        elif text.startswith("SPIINV "):
+            try:
+                reply = self.controller.set_spi_invert(int(text.split()[1]))
+            except (IndexError, ValueError):
+                reply = "SPIINV_RANGE_0_TO_7"
         else:
             reply = "UNKNOWN_COMMAND"
         channel = "SIM-ACK" if reply == text or reply.startswith(("MODE ", "MI ")) else "SIM"

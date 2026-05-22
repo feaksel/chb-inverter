@@ -3,6 +3,7 @@
 #include "pwm_config.h"
 #include "pwm_modulator.h"
 #include "sensing.h"
+#include "spi_mcp3201.h"
 #include "uart_telem.h"
 
 extern volatile uint8_t g_precharge_done;
@@ -362,6 +363,58 @@ static void handle_oc(const uart_command_t *cmd)
     emit_protection_config_line();
 }
 
+/* SPIINV <0..7>: set the MCP3201 SPI line-inversion mask and immediately
+ * re-run the ADC self-test (same follow-up as RESCAN) so the operator can
+ * try a polarity and see at once whether the sensors come alive. Bit 0 =
+ * SCK, bit 1 = CS, bit 2 = MISO; 7 = all inverted (standard 6N137 wiring),
+ * 0 = direct drive. Allowed in IDLE or FAULT. */
+static void handle_spiinv(const uart_command_t *cmd)
+{
+    uint32_t mask;
+
+    if ((g_state != FSM_STATE_IDLE) && (g_state != FSM_STATE_FAULT)) {
+        UART_SendError("SPIINV_REQUIRES_IDLE_OR_FAULT");
+        return;
+    }
+
+    mask = (uint32_t)cmd->float_arg;
+    if (mask > (uint32_t)SPI_INVERT_ALL) {
+        UART_SendError("SPIINV_RANGE_0_TO_7");
+        return;
+    }
+
+    SPI_MCP3201_SetInvert((uint8_t)mask);
+    UART_SendAck(cmd->raw);
+
+    Sensing_SelfTest();
+    if (Sensing_ModeSensorsAvailable(g_mode) == 0u) {
+        sensing_mode_t previous = g_mode;
+        g_mode = select_best_mode();
+        if (g_mode != previous) {
+            UART_SendError("MODE_DEMOTED");
+        }
+    }
+    warn_if_open_loop();
+}
+
+/* TRIP: operator-forced fault. Latches FAULT_MANUAL and enters FAULT so the
+ * fault behavior (PWM disabled, FAULT_OUT pin driven low, $F report) can be
+ * demonstrated without a real sensor trip — useful when the sensors are not
+ * yet readable. Allowed from IDLE / PRECHARGE / RUN; CLEAR exits as usual. */
+static void handle_trip(const uart_command_t *cmd)
+{
+    if (g_state == FSM_STATE_FAULT) {
+        UART_SendError("ALREADY_IN_FAULT");
+        return;
+    }
+    if (g_state == FSM_STATE_BOOT) {
+        UART_SendError("TRIP_NOT_ALLOWED_IN_BOOT");
+        return;
+    }
+    UART_SendAck(cmd->raw);
+    enter_fault(FAULT_MANUAL);
+}
+
 static void handle_command(const uart_command_t *cmd)
 {
     switch (cmd->type) {
@@ -410,10 +463,23 @@ static void handle_command(const uart_command_t *cmd)
     case UART_CMD_OC:
         handle_oc(cmd);
         break;
+    case UART_CMD_SPIINV:
+        handle_spiinv(cmd);
+        break;
     case UART_CMD_CONFIG:
         UART_SendAck(cmd->raw);
         emit_pwm_config_line();
         emit_protection_config_line();
+        break;
+    case UART_CMD_ADCRAW: {
+        mcp3201_samples_t raw;
+        UART_SendAck(cmd->raw);
+        SPI_MCP3201_Read(SENSOR_MASK_ALL, &raw);
+        UART_SendAdcRaw(raw.dc1, raw.dc2, raw.current);
+        break;
+    }
+    case UART_CMD_TRIP:
+        handle_trip(cmd);
         break;
     case UART_CMD_INVALID:
     default:

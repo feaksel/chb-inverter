@@ -1,6 +1,7 @@
 #include "uart_telem.h"
 #include "protection.h"
 #include "pwm_modulator.h"
+#include "spi_mcp3201.h"
 #include <string.h>
 
 #define UART_TX_BUFFER_SIZE 512u
@@ -138,6 +139,7 @@ static void append_fault_names(char *buf, uint32_t *pos, uint32_t max, uint8_t f
     APPEND_FAULT(FAULT_OC, "OC");
     APPEND_FAULT(FAULT_IMBAL, "IMBAL");
     APPEND_FAULT(FAULT_SENSOR_LOST, "SENSOR_LOST");
+    APPEND_FAULT(FAULT_MANUAL, "MANUAL");
 
 #undef APPEND_FAULT
 }
@@ -322,6 +324,10 @@ static void parse_command(uart_command_t *cmd, const char *line)
         cmd->type = UART_CMD_RESCAN;
     } else if (strcmp(line, "CONFIG") == 0) {
         cmd->type = UART_CMD_CONFIG;
+    } else if (strcmp(line, "ADCRAW") == 0) {
+        cmd->type = UART_CMD_ADCRAW;
+    } else if (strcmp(line, "TRIP") == 0) {
+        cmd->type = UART_CMD_TRIP;
     } else if (strncmp(line, "MODE ", 5u) == 0) {
         if (parse_mode_arg(&line[5], &cmd->mode_arg) != 0u) {
             cmd->type = UART_CMD_MODE;
@@ -357,6 +363,10 @@ static void parse_command(uart_command_t *cmd, const char *line)
     } else if (strncmp(line, "OC ", 3u) == 0) {
         if (parse_mi_arg(&line[3], &cmd->float_arg) != 0u) {
             cmd->type = UART_CMD_OC;
+        }
+    } else if (strncmp(line, "SPIINV ", 7u) == 0) {
+        if (parse_mi_arg(&line[7], &cmd->float_arg) != 0u) {
+            cmd->type = UART_CMD_SPIINV;
         }
     }
 }
@@ -422,7 +432,7 @@ void UART_SendHelp(void)
 {
     UART_WriteString("$H,START STOP CLEAR MODE 0..5 STATUS HELP MI 0.0..0.95 RESCAN "
                      "MOD STAIR|PSC|STAIR_ALT FSW <hz> BRIDGE BOTH|B1|B2 "
-                     "FFUND <hz> VNOM <v> OC <a> CONFIG\r\n");
+                     "FFUND <hz> VNOM <v> OC <a> SPIINV 0..7 ADCRAW TRIP CONFIG\r\n");
 }
 
 uint8_t UART_ActivitySeen(void)
@@ -455,6 +465,21 @@ void UART_SendPwmConfig(const char *modulator_name,
     append_u32(line, &pos, sizeof(line), measured_cnt_offset);
     append_str(line, &pos, sizeof(line), ",lock=");
     append_str(line, &pos, sizeof(line), phase_locked ? "OK" : "BAD");
+    append_str(line, &pos, sizeof(line), "\r\n");
+    UART_WriteString(line);
+}
+
+void UART_SendAdcRaw(uint16_t dc1, uint16_t dc2, uint16_t current)
+{
+    char line[80];
+    uint32_t pos = 0u;
+
+    append_str(line, &pos, sizeof(line), "$R,dc1=");
+    append_u32(line, &pos, sizeof(line), dc1);
+    append_str(line, &pos, sizeof(line), ",dc2=");
+    append_u32(line, &pos, sizeof(line), dc2);
+    append_str(line, &pos, sizeof(line), ",cur=");
+    append_u32(line, &pos, sizeof(line), current);
     append_str(line, &pos, sizeof(line), "\r\n");
     UART_WriteString(line);
 }
@@ -547,6 +572,8 @@ void UART_SendStatus(uint32_t ms,
     append_sensor_value(line, &pos, sizeof(line), data->current.filtered_value, data->current.available);
     append_str(line, &pos, sizeof(line), ",mi=");
     append_fixed2(line, &pos, sizeof(line), modulation_index);
+    append_str(line, &pos, sizeof(line), ",spiinv=");
+    append_hex8(line, &pos, sizeof(line), SPI_MCP3201_GetInvert());
     append_str(line, &pos, sizeof(line), "\r\n");
     UART_WriteString(line);
 }
