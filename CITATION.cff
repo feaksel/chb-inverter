@@ -1,0 +1,39 @@
+cff-version: 1.2.0
+message: "If you use this project in academic work, please cite it as below."
+title: "5-Level Cascaded H-Bridge Inverter with STM32 Nucleo-F303RE"
+abstract: >-
+  Modular cascaded H-bridge multilevel inverter built around two identical
+  single-bridge PCB modules driven by phase-shifted carrier PWM on an
+  STM32 Nucleo-F303RE. Includes a PySide6 operator dashboard, bit-banged
+  MCP3201 isolated sensing, and a complete bring-up and design-decision
+  record. Graduation project, Hacettepe University EEE, 2026.
+type: software
+authors:
+  - family-names: Aksel
+    given-names: Furkan Emir
+    affiliation: Hacettepe University, Department of Electrical and Electronics Engineering
+  - family-names: Koçak
+    given-names: Ahmet
+    affiliation: Hacettepe University, Department of Electrical and Electronics Engineering
+  - family-names: Abay
+    given-names: Faruk Gökhan
+    affiliation: Hacettepe University, Department of Electrical and Electronics Engineering
+  - family-names: Aydın
+    given-names: Mücahit
+    affiliation: Hacettepe University, Department of Electrical and Electronics Engineering
+contact:
+  - family-names: Aksel
+    given-names: Furkan Emir
+    email: furkanemiraksel1@gmail.com
+license: Apache-2.0
+repository-code: "https://github.com/feaksel/chb-inverter"
+url: "https://feaksel.github.io/chb-inverter/"
+keywords:
+  - power electronics
+  - multilevel inverter
+  - cascaded H-bridge
+  - phase-shifted carrier PWM
+  - STM32
+  - graduation project
+date-released: 2026-05-26
+version: "1.0.0"

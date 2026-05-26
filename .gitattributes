@@ -1,0 +1,57 @@
+# ---- Default line endings ----
+* text=auto eol=lf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# ---- Mark binary types (no diff / no merge attempt) ----
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.tar   binary
+*.gz    binary
+*.7z    binary
+
+# ---- KiCad ----
+*.kicad_pcb   text eol=lf
+*.kicad_sch   text eol=lf
+*.kicad_pro   text eol=lf
+*.kicad_sym   text eol=lf
+*.kicad_mod   text eol=lf
+
+# ---- STM32 / firmware sources ----
+*.c   text eol=lf
+*.h   text eol=lf
+*.s   text eol=lf
+*.ld  text eol=lf
+*.ioc text eol=lf
+
+# ---- MATLAB / Simulink ----
+*.m    text eol=lf
+*.slx  binary
+*.mdl  binary
+*.mat  binary
+
+# ---- Verilog / EDA artifacts (large) ----
+*.v       text eol=lf
+*.sv      text eol=lf
+*.vhd     text eol=lf
+
+# ---- Git LFS — large binary artifacts ----
+# Keep the repo lean; track these via Git LFS rather than inline blobs.
+*.pdf       filter=lfs diff=lfs merge=lfs -text
+*.gds       filter=lfs diff=lfs merge=lfs -text
+*.gds.gz    filter=lfs diff=lfs merge=lfs -text
+*.slx       filter=lfs diff=lfs merge=lfs -text
+*.mat       filter=lfs diff=lfs merge=lfs -text
+# Populated-board / scope photos can be large; LFS them above the README-thumbnail size
+hardware/single-bridge-v4/photos/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
+hardware/single-bridge-v4/photos/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+hardware/single-bridge-v4/photos/**/*.png  filter=lfs diff=lfs merge=lfs -text
+hardware/single-bridge-v4/renders/**/*.png filter=lfs diff=lfs merge=lfs -text
+hardware/single-bridge-v4/gerbers/**/*.zip filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,101 @@
+# ---- OS / editor ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+ENV/
+
+# ---- MkDocs ----
+site/
+.cache/
+
+# ---- STM32 / C build artifacts ----
+# STM32CubeIDE produces Debug/, Release/, RelWithDebInfo/ alongside source
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+*.o
+*.obj
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.su
+*.cyclo
+# Eclipse / CubeIDE metadata that should not be tracked
+.metadata/
+.settings/
+.cproject.bak
+*.launch
+# Keep .cproject / .project tracked — they're how CubeIDE imports the project
+
+# ---- KiCad ----
+*-backups/
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.kicad_prl
+fp-info-cache
+_autosave-*
+
+# ---- MATLAB / Simulink ----
+*.asv
+*.autosave
+*.mexw64
+*.mexw32
+*.mexa64
+*.mexmaci64
+slprj/
+sccprj/
+codegen/
+*.slxc
+
+# ---- Verilog / EDA ----
+# Synthesis junk; keep RTL sources and final reports
+work/
+xsim.dir/
+*.jou
+*.log
+*.pb
+*.wdb
+*.vcd
+*.fst
+*.dump
+
+# ---- Misc ----
+*.tmp
+*.bak
+*.orig
+*.rej
