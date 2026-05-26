@@ -34,6 +34,9 @@ from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm, mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
     BaseDocTemplate, Frame, Image, KeepTogether, ListFlowable, ListItem,
@@ -41,6 +44,51 @@ from reportlab.platypus import (
     NextPageTemplate,
 )
 from reportlab.platypus.flowables import HRFlowable
+
+try:
+    from PIL import Image as PILImage
+except ImportError:
+    PILImage = None
+
+
+# ===== Fonts (with Turkish character support) ========================================
+# Helvetica (default PDF font) doesn't have ı, ş, ğ, ç, ü, ö. Register Arial from
+# Windows fonts (or DejaVu Sans on Linux/Mac) so Turkish names render correctly.
+
+def _register_fonts() -> tuple[str, str, str, str]:
+    candidates = [
+        # (family-name, regular, bold, italic, bold-italic)
+        ("Arial",
+         "C:/Windows/Fonts/arial.ttf",
+         "C:/Windows/Fonts/arialbd.ttf",
+         "C:/Windows/Fonts/ariali.ttf",
+         "C:/Windows/Fonts/arialbi.ttf"),
+        ("DejaVu",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf"),
+    ]
+    for fam, reg, bold, ita, bi in candidates:
+        if all(os.path.exists(p) for p in (reg, bold, ita, bi)):
+            try:
+                pdfmetrics.registerFont(TTFont(f"{fam}", reg))
+                pdfmetrics.registerFont(TTFont(f"{fam}-Bold", bold))
+                pdfmetrics.registerFont(TTFont(f"{fam}-Italic", ita))
+                pdfmetrics.registerFont(TTFont(f"{fam}-BoldItalic", bi))
+                registerFontFamily(fam,
+                                   normal=fam, bold=f"{fam}-Bold",
+                                   italic=f"{fam}-Italic", boldItalic=f"{fam}-BoldItalic")
+                print(f"  font: registered {fam} (Turkish characters supported)")
+                return fam, f"{fam}-Bold", f"{fam}-Italic", f"{fam}-BoldItalic"
+            except Exception as exc:
+                print(f"  font: {fam} registration failed: {exc}")
+                continue
+    print("  font: WARNING — falling back to Helvetica (no Turkish character support)")
+    return "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique"
+
+
+FONT, FONT_BOLD, FONT_ITALIC, FONT_BOLDITALIC = _register_fonts()
 
 
 # ===== Constants =====================================================================
@@ -64,56 +112,65 @@ _base = getSampleStyleSheet()
 
 TITLE = ParagraphStyle(
     "Title", parent=_base["Title"],
-    fontName="Helvetica-Bold", fontSize=24, leading=30,
+    fontName=FONT_BOLD, fontSize=24, leading=30,
     alignment=TA_CENTER, textColor=TEAL_DARK, spaceAfter=10,
 )
 SUBTITLE = ParagraphStyle(
     "Subtitle", parent=_base["Title"],
-    fontName="Helvetica-Bold", fontSize=18, leading=22,
+    fontName=FONT_BOLD, fontSize=18, leading=22,
     alignment=TA_CENTER, textColor=TEAL_DARK, spaceAfter=20,
 )
 TITLE_PAGE_LABEL = ParagraphStyle(
     "TitlePageLabel", parent=_base["Normal"],
-    fontName="Helvetica-Bold", fontSize=11, leading=14,
+    fontName=FONT_BOLD, fontSize=11, leading=14,
     alignment=TA_CENTER, textColor=GREY_TEXT, spaceAfter=4,
 )
 TITLE_PAGE_VALUE = ParagraphStyle(
     "TitlePageValue", parent=_base["Normal"],
-    fontName="Helvetica", fontSize=11, leading=14,
+    fontName=FONT, fontSize=11, leading=14,
     alignment=TA_CENTER, textColor=colors.black, spaceAfter=16,
 )
 
 H1 = ParagraphStyle(
     "H1", parent=_base["Heading1"],
-    fontName="Helvetica-Bold", fontSize=18, leading=22,
+    fontName=FONT_BOLD, fontSize=18, leading=22,
     textColor=TEAL_DARK, spaceBefore=18, spaceAfter=12,
     keepWithNext=True,
 )
 H2 = ParagraphStyle(
     "H2", parent=_base["Heading2"],
-    fontName="Helvetica-Bold", fontSize=14, leading=18,
+    fontName=FONT_BOLD, fontSize=14, leading=18,
     textColor=TEAL, spaceBefore=14, spaceAfter=8,
     keepWithNext=True,
 )
 H3 = ParagraphStyle(
     "H3", parent=_base["Heading3"],
-    fontName="Helvetica-Bold", fontSize=12, leading=16,
+    fontName=FONT_BOLD, fontSize=12, leading=16,
     textColor=TEAL, spaceBefore=10, spaceAfter=6,
     keepWithNext=True,
 )
 BODY = ParagraphStyle(
     "Body", parent=_base["BodyText"],
-    fontName="Helvetica", fontSize=10.5, leading=15,
+    fontName=FONT, fontSize=10.5, leading=15,
     alignment=TA_JUSTIFY, spaceAfter=8, textColor=colors.black,
 )
-BODY_BOLD = ParagraphStyle("BodyBold", parent=BODY, fontName="Helvetica-Bold")
+BODY_BOLD = ParagraphStyle("BodyBold", parent=BODY, fontName=FONT_BOLD)
 BULLET = ParagraphStyle(
     "Bullet", parent=BODY, leftIndent=18, bulletIndent=6, spaceAfter=4,
 )
 CAPTION = ParagraphStyle(
     "Caption", parent=BODY,
-    fontName="Helvetica-Oblique", fontSize=9.5, leading=13,
+    fontName=FONT_ITALIC, fontSize=9.5, leading=13,
     alignment=TA_CENTER, textColor=GREY_TEXT, spaceBefore=2, spaceAfter=14,
+)
+CELL = ParagraphStyle(
+    "Cell", parent=BODY,
+    fontName=FONT, fontSize=9, leading=12,
+    alignment=TA_LEFT, spaceAfter=0, spaceBefore=0,
+)
+CELL_HEADER = ParagraphStyle(
+    "CellHeader", parent=CELL,
+    fontName=FONT_BOLD, textColor=colors.white,
 )
 REF = ParagraphStyle(
     "Ref", parent=BODY, fontSize=9.5, leading=13, leftIndent=20,
@@ -123,7 +180,7 @@ TOC_ENTRY = ParagraphStyle(
     "TOC", parent=BODY, fontSize=10.5, leading=18, spaceAfter=0,
 )
 LABEL = ParagraphStyle(
-    "Label", parent=BODY, fontName="Helvetica-Bold",
+    "Label", parent=BODY, fontName=FONT_BOLD,
     textColor=GREY_TEXT, fontSize=9.5, leading=13,
 )
 
@@ -171,26 +228,53 @@ def table_caption(caption: str) -> Paragraph:
     return Paragraph(f"<b>Table {n}.</b> {caption}", CAPTION)
 
 
+def _clean_text(text: str) -> str:
+    """Strip em/en-dashes and normalise whitespace for clean PDF output."""
+    return (text.strip()
+                .replace("\n", " ")
+                .replace("—", "-")
+                .replace("–", "-"))
+
+
 def themed_table(data: list[list], col_widths: list[float] | None = None,
                  first_row_header: bool = True, first_col_label: bool = False) -> Table:
-    """Build a small data table with the report's teal accent."""
-    t = Table(data, colWidths=col_widths, repeatRows=1 if first_row_header else 0)
+    """Build a small data table with the report's teal accent.
+
+    Cell strings are wrapped in Paragraph flowables so text wraps inside the
+    cell. Em-dashes are stripped from cell content.
+    """
+    def wrap(item, *, header: bool):
+        if isinstance(item, Paragraph):
+            return item
+        if isinstance(item, str):
+            style = CELL_HEADER if header else CELL
+            return Paragraph(_clean_text(item), style)
+        return item
+
+    wrapped = []
+    for r_idx, row in enumerate(data):
+        wrapped.append([wrap(c, header=(first_row_header and r_idx == 0))
+                        for c in row])
+
+    t = Table(wrapped, colWidths=col_widths,
+              repeatRows=1 if first_row_header else 0)
     style = [
-        ("FONT", (0, 0), (-1, -1), "Helvetica", 9.5),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
         ("GRID", (0, 0), (-1, -1), 0.4, GREY_RULE),
     ]
     if first_row_header:
         style.append(("BACKGROUND", (0, 0), (-1, 0), TEAL))
-        style.append(("TEXTCOLOR", (0, 0), (-1, 0), colors.white))
-        style.append(("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9.5))
     if first_col_label:
-        style.append(("FONT", (0, 1), (0, -1), "Helvetica-Bold", 9.5))
+        # When first col is a label, swap its cell style to bold-but-not-header
+        for r in range(1, len(wrapped)):
+            cell = wrapped[r][0]
+            if isinstance(cell, Paragraph):
+                wrapped[r][0] = Paragraph(_clean_text(cell.text), CELL_HEADER)
     t.setStyle(TableStyle(style))
     return t
 
@@ -254,8 +338,8 @@ def _build_doc() -> BaseDocTemplate:
 # ===== Helper for paragraphs =========================================================
 
 def P(text: str, style: ParagraphStyle = BODY) -> Paragraph:
-    """Build a Paragraph, normalising whitespace."""
-    return Paragraph(text.strip().replace("\n", " "), style)
+    """Build a Paragraph, normalising whitespace and stripping em-dashes."""
+    return Paragraph(_clean_text(text), style)
 
 
 def bullets(items: list[str], style: ParagraphStyle = BULLET) -> ListFlowable:
@@ -281,14 +365,25 @@ def title_page() -> list:
     story.append(P("FINAL REPORT", SUBTITLE))
     story.append(Spacer(0, 0.4 * cm))
 
-    # Hacettepe logo
+    # Hacettepe logo — explicit w + h from PIL so aspect ratio is preserved
     logo_path = IMG / "hacettepe-logo.png"
     if logo_path.exists():
-        logo = Image(str(logo_path))
-        # Scale logo to about 5 cm wide
-        logo_w = 5 * cm
-        logo.drawWidth = logo_w
-        logo.drawHeight = logo_w * logo.imageHeight / logo.imageWidth
+        target = 5 * cm
+        # Get true pixel dimensions
+        if PILImage is not None:
+            with PILImage.open(logo_path) as im:
+                w_px, h_px = im.size
+        else:
+            tmp = Image(str(logo_path))
+            w_px, h_px = tmp.imageWidth, tmp.imageHeight
+        # Fit into target × target box, preserve aspect
+        if h_px >= w_px:
+            h = target
+            w = target * w_px / h_px
+        else:
+            w = target
+            h = target * h_px / w_px
+        logo = Image(str(logo_path), width=w, height=h)
         logo.hAlign = "CENTER"
         story.append(logo)
         story.append(Spacer(0, 0.4 * cm))
@@ -315,7 +410,7 @@ def title_page() -> list:
     story.append(P("Assoc. Prof. Dr. Rasım Doğan", TITLE_PAGE_VALUE))
 
     story.append(P("SUBMISSION DATE", TITLE_PAGE_LABEL))
-    story.append(P("26 May 2026", TITLE_PAGE_VALUE))
+    story.append(P("June 2026", TITLE_PAGE_VALUE))
 
     story.append(Spacer(0, 1.5 * cm))
     story.append(P("SPRING 2025–2026", TITLE_PAGE_LABEL))
@@ -506,10 +601,12 @@ def section_project_description() -> list:
                  "of this module are cascaded externally to produce the 5-level output.",
                  width_cm=14))
     s.append(P("System block diagram", H3))
-    s.extend(fig(Path("abstract-system-diagram.png"),
-                 "Abstract system block diagram — two H-bridge cells, the STM32 controller, "
-                 "the operator dashboard, and the isolation barriers that separate the "
-                 "controller side from each bridge.", width_cm=13))
+    s.extend(fig(Path("diagram-system-block.png"),
+                 "System block diagram - two H-bridge cells driven from a single "
+                 "STM32 controller. Solid arrows are PWM (TIM1 / TIM8); dotted "
+                 "arrows are isolated MCP3201 sensing returns through 6N137 "
+                 "optocouplers. The dashboard talks to the controller over UART.",
+                 width_cm=15))
     s.append(P("Key specifications", H3))
     spec_table = themed_table([
         ["Parameter", "Value"],
@@ -1345,7 +1442,7 @@ def section_final_design() -> list:
                  width_cm=14))
     s.append(P("Firmware FSM", H3))
     s.append(P("""
-        Five states — BOOT → IDLE → PRECHARGE → RUN → FAULT. The
+        Five states - BOOT, IDLE, PRECHARGE, RUN, FAULT. The
         supervisory FSM owns the MOE bit (PWM master-output-enable), the
         sensor mode, and the protection latch. PRECHARGE forces all
         low-sides ON for 6 ms (3 PWM periods at 500 Hz) to seed any
@@ -1354,6 +1451,13 @@ def section_final_design() -> list:
         within 3 s of boot, supporting unattended-demo deployments; the
         dashboard cancels auto-start by transmitting STATUS on connect.
     """))
+    s.extend(fig(Path("diagram-fsm.png"),
+                 "Firmware supervisory FSM. Five states with the transitions used "
+                 "during the bench session: START arms the bridges through "
+                 "PRECHARGE into RUN; STOP returns to IDLE from either; UV / OV / "
+                 "OC / IMBAL trips raise FAULT from any active state; CLEAR "
+                 "returns to IDLE after the fault condition has cleared.",
+                 width_cm=16))
     s.append(P("Modulators", H3))
     s.append(P("""
         Three modulators ship in the firmware, runtime-selectable over UART:
