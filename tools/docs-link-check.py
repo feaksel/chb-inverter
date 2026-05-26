@@ -20,8 +20,16 @@ SITE_DIR = Path(__file__).resolve().parent.parent / "site"
 HREF_RE = re.compile(r'href="([^"]+)"')
 
 
+EXTERNAL_SCHEMES = {"http", "https", "mailto", "tel"}
+SKIP_SCHEMES = {"javascript", "data"}  # Material's "expand-all" buttons use href="javascript:void(0)"
+
+
 def is_external(href: str) -> bool:
-    return urlparse(href).scheme in {"http", "https", "mailto", "tel"}
+    return urlparse(href).scheme in EXTERNAL_SCHEMES
+
+
+def should_skip(href: str) -> bool:
+    return urlparse(href).scheme in SKIP_SCHEMES
 
 
 def main() -> int:
@@ -42,6 +50,8 @@ def main() -> int:
         for href in HREF_RE.findall(text):
             if not href or href.startswith("#"):
                 continue
+            if should_skip(href):
+                continue
             if is_external(href):
                 external_count += 1
                 continue
@@ -52,6 +62,13 @@ def main() -> int:
             target_path = (html.parent / target).resolve()
             if target_path.is_dir():
                 target_path = target_path / "index.html"
+            # Links that point outside the built site (e.g. into hardware/, firmware/)
+            # are not part of MkDocs' tree — treat them as external rather than broken.
+            try:
+                target_path.relative_to(SITE_DIR)
+            except ValueError:
+                external_count += 1
+                continue
             if not target_path.exists():
                 broken.append((html.relative_to(SITE_DIR), href))
 

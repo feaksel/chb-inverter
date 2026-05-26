@@ -1,0 +1,35 @@
+Reference,Quantity,Value,Footprint,MPN,Supplier,Supplier Part Number,Supplier URL,Unit Cost TL,Subtotal TL,Role
+Q1-Q4,4,IRFB4110 (per module — replaces IRFZ44N from v3.2 BOM),TO-220,IRFB4110,Motorobit,TBD,https://www.motorobit.com/,TBD,TBD,"H-bridge power switch. Substituted for IRFZ44N at order time — see CHANGELOG/build-guide §4."
+U1-U4,4,TLP250 isolated gate driver,DIP-8,TLP250,Motorobit,TLP250,https://www.motorobit.com/tlp250-dip-8-optocoupler-ic-with-mosfet-driver-output,40.0,160.0,"One per MOSFET — true galvanic isolation (2.5 kV); mandatory for CHB floating bridge."
+U5-U6,2,B0515S-1WR3 5V→15V isolated DC-DC,SIP-4,B0515S-1WR3,Motorobit,B0515S-1WR3,https://www.motorobit.com/b0515s-1wr3-dc-dc-1w-45-55v-input-15v-output-voltage-converter,78.0,156.0,"Isolated 15 V rail for the TLP250s (two in parallel per bridge)."
+D1,1,1N5408 3A 1000V rectifier,DO-201,1N5408,Direnc.net,1N5408,https://www.direnc.net/1n5408-do201-3a-1000v-diyot,2.5,2.5,Reverse-polarity protection at the DC input.
+D2-D5,4,UF4007 1A 1000V 75ns fast diode,DO-41,UF4007,Direnc.net,UF4007,https://www.direnc.net/uf4007-1a-1000v-tht-hizli-diyot-do41,2.2,8.8,Bootstrap diode (one per high-side channel).
+D6,1,1.5KE62A TVS diode (84.5 V clamp),DO-201,1.5KE62A,Motorobit,1.5KE62A,https://www.motorobit.com/transil-diyot,10.0,10.0,Transient-voltage clamp on the DC bus.
+U7,1,ACS712-20A current sensor module,Module,ACS712-20A,Motorobit,ACS712-20A,https://www.motorobit.com/20-to-20a-acs712-current-sensor,55.0,55.0,Hall-effect current sensor (100 mV/A) on the AC output.
+U8-U9,2,MCP3201 12-bit SPI ADC,DIP-8,MCP3201,Direnc.net,MCP3201,https://www.direnc.net/mcp3201-dip8-analog-dijital-cevirici-entegre,81.0,162.0,"Isolated bus ADC + current ADC. Two per module (DC bus + bridge current share an isolated MISO on PC3)."
+U10-U12,3,6N137 high-speed optocoupler,DIP-8,6N137,Motorobit,6N137,https://www.motorobit.com/6n137-dip-8-digital-output-optocoupler-ic,12.0,36.0,"SPI isolation: SCK + CS + MISO per island. The 6N137 inverts — firmware compensates via SPIINV."
+U13,1,78L05 5V linear regulator,TO-92,78L05,Motorobit,78L05,https://www.motorobit.com/78l05-voltaj-regulatoru-to92,3.0,3.0,Island-side logic supply (15 V → 5 V).
+C1,1,1000µF / 100V electrolytic,Radial,1000µF/100V,Direnc.net,TBD,https://www.direnc.net/kondansatorler,25.0,25.0,DC-link bulk storage.
+R1,1,100kΩ / 2W bleeder,Axial,100k/2W,Direnc.net,TBD,https://www.direnc.net/direncler,2.0,2.0,Safety discharge path.
+F1,1,15 A blade fuse + holder,Standard,15A,Robotistan,TBD,https://www.robotistan.com/,8.0,8.0,Short-circuit protection.
+R2-R15,14,220Ω 1/4W 5%,Axial,R-220R-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,4.2,"TLP250 LED limit (×8) + 6N137 LED (×6)."
+R16-R23,8,22Ω 1/4W 5%,Axial,R-22R-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,2.4,Gate series resistor (per MOSFET).
+R24-R31,8,10kΩ 1/4W 5%,Axial,R-10K-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,2.4,Gate-source pull-down (per MOSFET).
+C2-C31,30,100nF / 25V ceramic,THT,C-100nF,Direnc.net,TBD,https://www.direnc.net/kondansatorler,0.5,15.0,"Decoupling on TLP250 + 6N137 + MCP3201 + B0515 + voltage divider + bypass."
+C32-C35,4,10µF / 25V (per HS channel),THT,C-10uF,Direnc.net,TBD,https://www.direnc.net/kondansatorler,1.5,6.0,Bootstrap energy storage on each high-side channel.
+R32-R39,8,22Ω 2W wire-wound,Axial,R-22R-2W,Direnc.net,TBD,https://www.direnc.net/direncler,1.5,12.0,Snubber damping resistor (D-S of each MOSFET).
+C36-C43,8,2.2nF / 630V film,Box,C-2n2-630V,Direnc.net,TBD,https://www.direnc.net/kondansatorler,3.0,24.0,Snubber capacitor (in series with the 22Ω 2W resistor).
+R40-R41,2,1Ω 1/4W,Axial,R-1R0-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,0.6,B0515S current balancing (×2 parallels per bridge).
+C44,1,100µF / 25V electrolytic,Radial,C-100uF,Direnc.net,TBD,https://www.direnc.net/kondansatorler,1.0,1.0,B0515S output filter.
+R42,1,100kΩ 1% metal-film,Axial,R-100K-0.25W-1%,Direnc.net,TBD,https://www.direnc.net/direncler,0.5,0.5,Voltage divider — top (DC bus sense).
+R43,1,5.1kΩ 1% metal-film,Axial,R-5K1-0.25W-1%,Direnc.net,TBD,https://www.direnc.net/direncler,0.5,0.5,Voltage divider — bottom.
+R44-R46,3,4.7kΩ 1/4W,Axial,R-4K7-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,0.9,6N137 output pull-up.
+C45,1,1µF / 25V ceramic,THT,C-1uF,Direnc.net,TBD,https://www.direnc.net/kondansatorler,1.0,1.0,78L05 input filter.
+C46,1,10µF / 16V electrolytic,Radial,C-10uF-16V,Direnc.net,TBD,https://www.direnc.net/kondansatorler,0.5,0.5,78L05 output filter.
+R47,1,1kΩ 1/4W,Axial,R-1K0-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,0.3,ACS712 output divider — top.
+R48,1,1.5kΩ 1/4W,Axial,R-1K5-0.25W,Direnc.net,TBD,https://www.direnc.net/direncler,0.3,0.3,ACS712 output divider — bottom.
+J1-J3,3,Screw terminal 2-pos 15A+ 5.08mm,PCB,XY-MT-508,Direnc.net,TBD,https://www.direnc.net/konnektorler,5.0,15.0,2× DC input + 1× AC output.
+J4,1,Pin header 2×10 (2.54mm male),THT,2x10-PIN,Direnc.net,TBD,https://www.direnc.net/konnektorler,3.0,3.0,Controller interface (signals to STM32 Nucleo).
+HS1-HS4,4,TO-220 clip-on heatsink,TO-220,TO-220-HS,Robotistan,TBD,https://www.robotistan.com/,5.0,20.0,MOSFET cooling.
+W1,1,18 AWG silicone wire (red + black bundle),2m each,18AWG-SI,Robotistan,TBD,https://www.robotistan.com/,30.0,30.0,Power-stage wiring.
+S1-S17,17,DIP-8 IC turned-pin socket,DIP-8,DIP-8-SKT,Direnc.net,TBD,https://www.direnc.net/entegre-soketleri,1.5,25.5,"Sockets for TLP250 (×8) + 6N137 (×6) + MCP3201 (×3) per assembled module."
