@@ -37,6 +37,19 @@ The project's natural decomposition into **hardware design + fab**, **firmware +
 
 The team's choice to commit to **PSC over IPD** (replacing the build-guide's modulation strategy mid-project) was made jointly after Ahmet's bench measurement of the bridge-1 thermal imbalance and Furkan's firmware-side analysis of what the IPD asymmetry meant for sustained operation. The simulation evidence from Faruk gave the team the confidence to make the change without losing weeks of bench time.
 
+## Individual project logbooks (ELE 402, Spring 2025–2026)
+
+Each team member maintained an individual project logbook tracking weekly progress through the Spring 2026 semester, per the ELE 402 course requirements. Each logbook reflects the member's individual perspective on the four hardware iterations, the firmware rewrite, and the bench validation.
+
+| Member | Logbook |
+|---|---|
+| Furkan Emir Aksel | [PDF](../assets/pdfs/ELE402_Spring2026_Logbook_FurkanEmirAksel.pdf) (system + project engineering focus) |
+| Ahmet Koçak | [PDF](../assets/pdfs/ELE402_Spring2026_Logbook_AhmetKocak.pdf) (hardware design + bring-up focus) |
+| Faruk Gökhan Abay | [PDF](../assets/pdfs/ELE402_Spring2026_Logbook_FarukGokhanAbay.pdf) (simulation + analysis focus) |
+| Mücahit Aydın | [PDF](../assets/pdfs/ELE402_Spring2026_Logbook_MucahitAydin.pdf) (hardware assembly + MCU foundations focus) |
+
+Each logbook is regenerable from [`tools/generate-logbooks.py`](https://github.com/feaksel/chb-inverter/blob/main/tools/generate-logbooks.py).
+
 ## Where to reach the team
 
 | Person | Best for |
