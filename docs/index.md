@@ -6,11 +6,6 @@ hide:
 
 # 5-Level Cascaded H-Bridge Inverter
 
-<figure markdown="span">
-  ![Populated single-bridge v4 PCB module — IRFB4110 H-bridge with TLP250 optical gate drive and isolated MCP3201 sensing](assets/images/inverter-pcb.png){ loading=lazy }
-  <figcaption>One of two identical single-bridge v4 modules — 4-layer JLCPCB, IRFB4110 power MOSFETs in a full H-bridge, TLP250 optical gate drive on a B0515S isolated 15 V rail, bit-banged MCP3201 sensing through 6N137 optocouplers. Cascading two of these externally produces the 5-level output documented in the <a href="final-report/">final report</a>.</figcaption>
-</figure>
-
 Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB modules and an STM32 Nucleo-F303RE running phase-shifted carrier PWM at 5&nbsp;kHz. Built as the ELE 401/402 graduation project at Hacettepe University EEE — Spring 2026.
 
 !!! success "Project status — May 2026"
@@ -98,3 +93,8 @@ Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB
 | Mücahit Aydın | Hardware, assembly |
 
 Hacettepe University, Department of Electrical and Electronics Engineering — Ankara, 2026.
+
+<figure markdown="span">
+  ![Populated single-bridge v4 PCB module — IRFB4110 H-bridge with TLP250 optical gate drive and isolated MCP3201 sensing](assets/images/inverter-pcb.png){ loading=lazy }
+  <figcaption>One of two identical single-bridge v4 modules — 4-layer JLCPCB, IRFB4110 power MOSFETs in a full H-bridge, TLP250 optical gate drive on a B0515S isolated 15 V rail, bit-banged MCP3201 sensing through 6N137 optocouplers. Cascading two of these externally produces the 5-level output documented in the <a href="final-report/">final report</a>.</figcaption>
+</figure>
