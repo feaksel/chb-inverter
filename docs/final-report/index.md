@@ -10,6 +10,13 @@ title: Final graduation report
   <sub><i>The project poster — a one-page summary of the work. Downloadable as <a href="../assets/pdfs/CHB_Inverter_Poster_v5.pdf">PDF</a> or <a href="../assets/pdfs/CHB_Inverter_Poster.pptx">editable PowerPoint</a>.</i></sub>
 </p>
 
+!!! tip "Download the formatted PDF"
+    The final report is also available as a **formatted PDF** that follows the ELE 402 template structure (title page, abstract, TOC, list of figures, all 12 numbered sections, references):
+    
+    👉 **[Download `ELE402_Spring2026_FR_CereyanHacilari.pdf`](../assets/pdfs/ELE402_Spring2026_FR_CereyanHacilari.pdf)** (37 pages, 14 MB)
+    
+    The PDF is generated from [`tools/generate-final-report.py`](https://github.com/feaksel/chb-inverter/blob/main/tools/generate-final-report.py) and is regenerable from the canonical source material in the repo. The Markdown rendering on this page is the same content in browseable form.
+
 This report **supersedes** the ELE 401 interim report (Fall 2025) and the ELE 402 interim report v4 (Spring 2026). Both source documents are preserved verbatim at [`docs/assets/pdfs/`](https://github.com/feaksel/chb-inverter/tree/main/docs/assets/pdfs).
 
 **Authors:** Cereyan Hacıları — Furkan Emir Aksel, Ahmet Koçak, Faruk Gökhan Abay, Mücahit Aydın.
