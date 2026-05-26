@@ -1,0 +1,67 @@
+name: firmware-build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "firmware/stm32-f303re/**"
+      - ".github/workflows/firmware-build.yml"
+  pull_request:
+    paths:
+      - "firmware/stm32-f303re/**"
+      - ".github/workflows/firmware-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Smoke build (arm-none-eabi-gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect firmware tree
+        id: detect
+        run: |
+          if [ -d firmware/stm32-f303re ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::firmware/stm32-f303re/ not yet imported — skipping build."
+          fi
+
+      - name: Install arm-none-eabi toolchain
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: Build via STM32CubeIDE Debug/ makefile (preferred)
+        id: cubeide_build
+        if: steps.detect.outputs.present == 'true'
+        continue-on-error: true
+        working-directory: firmware/stm32-f303re/Debug
+        run: |
+          if [ -f makefile ] || [ -f Makefile ]; then
+            make -j2 all
+          else
+            echo "::notice::No Debug/makefile present — falling back to per-file syntax check."
+            exit 1
+          fi
+
+      - name: Fallback — per-file syntax check
+        if: steps.detect.outputs.present == 'true' && steps.cubeide_build.outcome == 'failure'
+        working-directory: firmware/stm32-f303re
+        run: |
+          # Walk the Core/ tree and confirm every .c at least parses with the include paths CubeMX
+          # configured. This is not a real link, but it catches header drift cheaply.
+          INC_FLAGS="-ICore/Inc -IDrivers/CMSIS/Include -IDrivers/CMSIS/Device/ST/STM32F3xx/Include -IDrivers/STM32F3xx_HAL_Driver/Inc -DSTM32F303xE -DUSE_HAL_DRIVER"
+          fail=0
+          for f in $(find Core/Src -name '*.c'); do
+            echo "checking $f"
+            if ! arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard \
+                 -std=gnu11 -fsyntax-only $INC_FLAGS "$f"; then
+              fail=1
+            fi
+          done
+          exit $fail

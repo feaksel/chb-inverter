@@ -1,0 +1,41 @@
+[project]
+name = "chb-inverter-docs"
+version = "1.0.0"
+description = "Documentation build dependencies for the 5-Level CHB Inverter monorepo"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Furkan Emir Aksel", email = "furkanemiraksel1@gmail.com" },
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+docs = [
+  "mkdocs-material>=9.5,<10",
+  "mkdocs-material-extensions>=1.3",
+  "pymdown-extensions>=10.7",
+  "mkdocs-table-reader-plugin>=2.2",
+  "mkdocs-git-revision-date-localized-plugin>=1.2",
+  "mkdocs-glightbox>=0.3.7",
+  "mkdocs-awesome-pages-plugin>=2.9",
+  "mkdocs-mermaid2-plugin>=1.1",
+  "mkdocs-include-markdown-plugin>=6.0",
+  "pillow>=10",
+  "cairosvg>=2.7",
+]
+tools = [
+  "requests>=2.31",
+]
+
+[project.urls]
+Homepage = "https://feaksel.github.io/chb-inverter/"
+Repository = "https://github.com/feaksel/chb-inverter"
+Documentation = "https://feaksel.github.io/chb-inverter/"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
