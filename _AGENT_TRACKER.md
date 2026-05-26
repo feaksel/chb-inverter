@@ -50,3 +50,5 @@ Last updated: 2026-05-26
 | 2026-05-26 | Firmware import method | `git subtree` with preserved history |
 | 2026-05-26 | GitHub Pages deployment branch | `gh-pages` (auto-managed by docs workflow) |
 | 2026-05-26 | Local working directory | Initialize git in place at `Multilevel_Inverter/`; remote = `feaksel/chb-inverter` |
+| 2026-05-26 | gh CLI installed via winget; authenticated as feaksel | Repo created at github.com/feaksel/chb-inverter; pushed main |
+| 2026-05-26 | Workflow scope deferred | gh OAuth token currently has 'repo, read:org, gist'. 'workflow' scope refresh needed at start of Phase 1 to push `.github/workflows/*.yml` |
