@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          lfs: true   # need actual LFS file bytes (hero PNG, demo poster, scope captures) — not pointer files
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5

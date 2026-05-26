@@ -72,13 +72,12 @@ Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB
 
 | Section | Contents |
 |---|---|
-| [Getting started](getting-started/index.md) | What the project is, who it's for, how to read these docs. |
 | [Hardware](hardware/index.md) | KiCad sources, gerbers, BOM, populated photos, and Build Guide v4.0. |
 | [Firmware](firmware/index.md) | STM32 source, the PSC-PWM modulator, the state machine, the UART protocol. |
 | [Dashboard](dashboard/index.md) | The PySide6 operator interface — install, run, use. |
 | [Simulation](simulation/index.md) | The Simulink model and the THD analysis that informed the topology choices. |
 | [Bring-up](bringup/index.md) | First-bench-session notes and the hardware bring-up reference. |
-| [Design notes](design-notes/index.md) | Standalone design-decision pieces — bootstrap fundamentals, CHB isolation, PSC vs. LSPWM, IGBT vs. MOSFET, grounding fix. |
+| [Design notes](design-notes/index.md) | Standalone design-decision pieces — bootstrap fundamentals, CHB isolation, PSC vs. LSPWM, IGBT vs. MOSFET, grounding fix, plus the [glossary](design-notes/glossary.md). |
 | [Iteration history](iteration-history/index.md) | Per-iteration story: what was attempted, what failed, what was learned. |
 | [Roadmap](roadmap/index.md) | Future work — what would be picked up after the graduation deliverable. |
 | [Final report](final-report/index.md) | Consolidated graduation report (supersedes ELE 401 + ELE 402 interim). |
