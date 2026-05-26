@@ -1,15 +1,10 @@
 # Bring-up
 
-Notes from putting the populated boards on the bench for the first time, and the canonical reference for the bring-up procedure.
+Two documents cover putting the populated boards on the bench:
 
-!!! info "Phase 2 placeholder"
-    The bring-up source files (`FIRST_BENCH_SESSION.md`, `HARDWARE_BRINGUP.md`) live in the firmware repository and are rendered into this section via `mkdocs-include-markdown-plugin` after Phase 2.
-
-## What's on this section (after Phase 2)
-
-| Page | Source |
+| Page | When to use it |
 |---|---|
-| First bench session | `firmware/.../FIRST_BENCH_SESSION.md` |
-| Bring-up reference | `firmware/.../HARDWARE_BRINGUP.md` |
+| [First bench session](first-session.md) | The first time you bring the new branch up. Linear procedure with explicit pass/fail checkpoints; covers Step 0, Phases 2–7b, Phase 8 of the reference, plus TLP250-protection checks at every step. **Start here.** |
+| [Bring-up reference](reference.md) | Comprehensive phase-by-phase reference with what-the-firmware-does, scope captures, UART output, and troubleshooting trees. Consult when the first-session doc doesn't match what you're seeing. |
 
-The procedural reference is also in [Build Guide v4.0 — §12 Bring-up procedure](../hardware/build-guide-v4.md). Where the first-session notes contradict the guide, the **session notes win** — they describe what we actually saw, not what we expected.
+The procedural reference is also in [Build Guide v4.0 — §12 Bring-up procedure](../hardware/build-guide-v4.md). Where the first-session notes contradict the guide, **the session notes win** — they describe what was actually seen, not what was expected.

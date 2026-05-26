@@ -20,42 +20,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.11
+        # PySide6==6.5.3 (pinned in dashboard/requirements.txt) ships wheels
+        # for 3.7-3.11 only — no 3.12 build yet. The unit tests don't actually
+        # need Qt, but other dev tooling does, so use the supported runtime.
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
           cache: pip
 
-      - name: Detect dashboard tree
+      - name: Detect dashboard tests
         id: detect
         run: |
-          if [ -d firmware/stm32-f303re/dashboard ]; then
+          if [ -d firmware/stm32-f303re/dashboard/tests ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::firmware/stm32-f303re/dashboard/ not yet imported — skipping tests."
+            echo "::notice::firmware/stm32-f303re/dashboard/tests/ not present — skipping."
           fi
 
-      - name: Install dashboard dependencies
+      - name: Install minimum runtime for tests
+        # The parser and sim tests are pure Python — they intentionally do not
+        # import PySide6, pyserial, or pyqtgraph. numpy is the only third-party
+        # dep the sim controller pulls in.
         if: steps.detect.outputs.present == 'true'
-        working-directory: firmware/stm32-f303re/dashboard
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          elif [ -f pyproject.toml ]; then
-            pip install -e .
-          else
-            echo "::notice::No requirements.txt or pyproject.toml — installing PySide6 only."
-            pip install PySide6 pyserial
-          fi
+          pip install "numpy<2.0"
 
       - name: Run unittest discover
         if: steps.detect.outputs.present == 'true'
         working-directory: firmware/stm32-f303re/dashboard
-        run: |
-          if [ -d tests ]; then
-            python -m unittest discover tests -v
-          else
-            echo "::notice::No tests/ directory found — skipping."
-          fi
+        run: python -m unittest discover tests -v

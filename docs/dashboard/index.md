@@ -1,16 +1,13 @@
 # Dashboard
 
-The PySide6 desktop operator dashboard that talks to the STM32 over UART.
+The PySide6 operator dashboard that talks to the STM32 over UART.
 
-!!! info "Phase 2 placeholder"
-    Full content lands when the firmware (and its bundled `dashboard/` directory) are imported in Phase 2.
-
-## What's on this section (after Phase 2)
-
-| Page | Purpose |
+| Page | What it covers |
 |---|---|
-| Overview | What the dashboard does, the data model, the UI layout. |
-| Installation | `pip install -r requirements.txt` and the first-run checklist. |
-| Operator workflow | Step-by-step for a typical bring-up + run session, including replay-log capture. |
+| [Overview](overview.md) | Architecture, modules, the data model, safety design. |
+| [Installation](installation.md) | `py -3.11 -m venv …` setup, pinned versions, troubleshooting. |
+| [Operator workflow](operator-workflow.md) | A typical session — bring up, configure, arm, run, stop, recover. |
 
-The dashboard source lives at `firmware/stm32-f303re/dashboard/` after the Phase 2 import. It is also covered in [Build Guide v4.0](../hardware/build-guide-v4.md) §11.
+Source: [`firmware/stm32-f303re/dashboard/`](https://github.com/feaksel/chb-inverter/tree/main/firmware/stm32-f303re/dashboard) (imported via subtree in Phase 2).
+
+The dashboard's own README is in the source tree at [`firmware/stm32-f303re/dashboard/README.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/dashboard/README.md).

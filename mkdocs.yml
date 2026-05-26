@@ -13,6 +13,17 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: site
 
+# `include-markdown` rewrites links from imported files (FIRST_BENCH_SESSION.md,
+# HARDWARE_BRINGUP.md, etc.) into paths under firmware/stm32-f303re/* — outside
+# the docs tree. MkDocs can't validate those, so demote not_found to `info`. The
+# stricter post-build `tools/docs-link-check.py` still catches in-tree breakage.
+validation:
+  links:
+    not_found: info
+    anchors: info  # included content (build guide, bring-up) has manual TOC anchors that don't always match MkDocs' slugify
+    absolute_links: warn
+    unrecognized_links: warn
+
 theme:
   name: material
   language: en

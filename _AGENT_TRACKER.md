@@ -12,7 +12,7 @@ Last updated: 2026-05-26
 
 | # | Artifact | Status | Notes |
 |---|---|---|---|
-| 1 | Firmware repo (pwm-rewrite-configurable branch) clone path or zip | ⏳ | Need: local clone path or git URL + branch confirmation |
+| 1 | Firmware repo (pwm-rewrite-configurable branch) clone path or zip | ✅ | Imported via `git subtree` 2026-05-26 from feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE; 11 upstream commits preserved |
 | 2 | Old experimental repo path (feaksel/5level-inverter) | ⏳ | Archive reference only; for salvageable parts |
 | 3 | KiCad project for single-bridge v4 (folder or zip) | ⏳ | Phase 3 |
 | 4 | Build Guide v4.0 markdown | ✅ | Present in working dir as `build-guide-v4.md` (59923 bytes) |

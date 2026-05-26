@@ -2,26 +2,25 @@
 
 STM32 source for the controller and the PySide6 operator dashboard.
 
-!!! info "Phase 2 in progress"
-    The firmware tree is imported in Phase 2 via `git subtree`, preserving commit history from the upstream repository at [feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE](https://github.com/feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE), branch `pwm-rewrite-configurable`.
+The firmware tree is imported via `git subtree` from the upstream repository [feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE](https://github.com/feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE), branch `pwm-rewrite-configurable`. All 11 upstream commits are preserved in this repo's `git log`.
 
-## What's on this section (after Phase 2)
+## Pages in this section
 
-| Page | Source | Purpose |
-|---|---|---|
-| Overview | written here | What the firmware does, at a glance. |
-| Pin map | Build Guide v4 §7.1 | Corrected GPIO assignments — supersedes the v3.1 errata. |
-| State machine | `firmware/.../FSM_NOTES.md` rendered as Mermaid | Controller FSM, transitions, fault states. |
-| UART protocol | Build Guide v4 §8.7 | Operator command + telemetry frame reference. |
-| Modulators | Build Guide v4 §9 + firmware CHANGELOG | PSC, PSC ALT, IPD LS-PWM — when to use which. |
-| Protection | Build Guide v4 §10 | Over-current trip, fault propagation. |
-
-## Companion source
-
-| Document | Path (after Phase 2) |
+| Page | What it covers |
 |---|---|
-| Firmware README | `firmware/stm32-f303re/README.md` |
-| Firmware CHANGELOG | `firmware/stm32-f303re/CHANGELOG.md` |
-| First bench session | `firmware/stm32-f303re/FIRST_BENCH_SESSION.md` |
-| Hardware bring-up reference | `firmware/stm32-f303re/HARDWARE_BRINGUP.md` |
-| State machine notes | `firmware/stm32-f303re/FSM_NOTES.md` |
+| [Overview](overview.md) | What the firmware does, module map, control flow, footprint. |
+| [Pin map](pin-map.md) | Corrected GPIO assignments — supersedes the v3.1 errata. |
+| [State machine](state-machine.md) | The supervisory FSM, transitions, per-mode protection. |
+| [UART protocol](uart-protocol.md) | Operator command set, telemetry frame, line prefixes. |
+| [Modulators](modulators.md) | STAIR, PSC, STAIR_ALT — when each is used and why. |
+| [Protection](protection.md) | The six sensing modes and the protection thresholds. |
+
+## Source files
+
+| Document | Source path |
+|---|---|
+| Firmware README | [`firmware/stm32-f303re/README.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/README.md) |
+| Firmware CHANGELOG | [`firmware/stm32-f303re/CHANGELOG.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/CHANGELOG.md) |
+| FSM notes | [`firmware/stm32-f303re/FSM_NOTES.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/FSM_NOTES.md) |
+| First bench session | [`firmware/stm32-f303re/FIRST_BENCH_SESSION.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/FIRST_BENCH_SESSION.md) → also rendered into the [bring-up section](../bringup/first-session.md). |
+| Hardware bring-up reference | [`firmware/stm32-f303re/HARDWARE_BRINGUP.md`](https://github.com/feaksel/chb-inverter/blob/main/firmware/stm32-f303re/HARDWARE_BRINGUP.md) → also rendered at [Bring-up reference](../bringup/reference.md). |
