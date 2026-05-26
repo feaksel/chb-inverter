@@ -1,8 +1,8 @@
 # Institution
 
-<p align="center">
-  <img src="../assets/images/hacettepe-logo.png" alt="Hacettepe University" width="200"/>
-</p>
+<figure markdown="span">
+  ![Hacettepe University](../assets/images/hacettepe-logo.png){ loading=lazy width=200 }
+</figure>
 
 ## Hacettepe University
 

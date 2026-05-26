@@ -4,6 +4,11 @@ title: Iteration 2 — revised gate-drive routing, bootstrap lessons
 
 # Iteration 2 — revised gate-drive routing, bootstrap lessons
 
+<figure markdown="span">
+  ![First CHB cascade on the breadboard — iteration-2 prototype](../assets/images/breadboard-first-chb-test.jpg){ loading=lazy width=80% }
+  <figcaption>First cascaded H-bridge test on the breadboard — two H-bridges wired in series with the iteration-2 gate-drive routing changes. This is the rig where the bootstrap-timing problem at high modulation indices was diagnosed.</figcaption>
+</figure>
+
 > **Status:** superseded. KiCad files for iteration 2 are not preserved in the repo.
 
 ## What was attempted

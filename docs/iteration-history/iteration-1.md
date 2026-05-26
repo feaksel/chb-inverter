@@ -4,6 +4,11 @@ title: Iteration 1 — single dual-bridge layout, IRFZ44N, IPD LS-PWM
 
 # Iteration 1 — single dual-bridge layout, IRFZ44N, IPD LS-PWM
 
+<figure markdown="span">
+  ![Breadboard IRFZ44N test rig — iteration-1-era component characterisation](../assets/images/breadboard-irfz44n-test.jpg){ loading=lazy width=80% }
+  <figcaption>Breadboard IRFZ44N test from the iteration-1 era — characterising the original MOSFET choice before any PCB was fabricated. The V<sub>DSS</sub>-headroom problem the table below describes was visible on this rig before the first board was ordered.</figcaption>
+</figure>
+
 > **Status:** superseded. Not for fabrication. KiCad files for iteration 1 are not preserved in the repo; the closest survivor is the v3.1 BOM at [`hardware/legacy/iteration-3/CHB_BOM_v3_1.xlsx`](https://github.com/feaksel/chb-inverter/blob/main/hardware/legacy/iteration-3/CHB_BOM_v3_1.xlsx).
 
 ## What was attempted
@@ -36,5 +41,10 @@ The intent was the simplest-possible 5-level inverter — one board, one bring-u
 
 - Schematic split into modular sheets (the start of the `Highside_cell` / `Lowside_cell` / `driver_cell` decomposition that survives in the iteration-4 KiCad).
 - Gate-drive routing redrawn around bootstrap timing concerns — leading directly into the [bootstrap fundamentals](../design-notes/bootstrap-fundamentals.md) discussion in iteration 2.
+
+<figure markdown="span">
+  ![First MOSFET test light — gate-drive verification](../assets/images/first-mosfet-test-light.jpeg){ loading=lazy width=70% }
+  <figcaption>Earliest gate-drive sanity check — a single MOSFET driving an indicator light, confirming the TLP250 isolation chain works end-to-end before scaling to a full H-bridge.</figcaption>
+</figure>
 
 The IRFZ44N and the IPD LS-PWM choice were both kept, on the theory that they were "good enough" and the layout was the bigger risk. Both assumptions were reversed by iteration 4.

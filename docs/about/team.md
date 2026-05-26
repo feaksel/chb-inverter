@@ -1,8 +1,9 @@
 # Team — Cereyan Hacıları
 
-<p align="center">
-  <img src="../assets/images/demo-stand-group-photo.jpeg" alt="Cereyan Hacıları" width="80%"/>
-</p>
+<figure markdown="span">
+  ![Cereyan Hacıları on the demo stand](../assets/images/demo-stand-group-photo.jpeg){ loading=lazy width=80% }
+  <figcaption>The four-person team: Furkan Emir Aksel, Ahmet Koçak, Faruk Gökhan Abay, Mücahit Aydın.</figcaption>
+</figure>
 
 The project group's name **Cereyan Hacıları** is Turkish for "The Current Pilgrims" — fitting for a power-electronics graduation project.
 

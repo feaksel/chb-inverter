@@ -20,6 +20,11 @@ Three Simulink models are kept in `simulation/simulink/`:
 | [`chb-5level-v2.slx`](https://github.com/feaksel/chb-inverter/blob/main/simulation/simulink/chb-5level-v2.slx) | Revised topology with the gate-drive sweep (IR2110 vs. TLP250) added. The IR2110 path is where the floating-reference failure showed up. |
 | [`chb-5level-rl-nospike.slx`](https://github.com/feaksel/chb-inverter/blob/main/simulation/simulink/chb-5level-rl-nospike.slx) | LC-filtered variant with an RL load — used to characterize the wavy-current artefact and tune the snubber. |
 
+<figure markdown="span">
+  ![Simulink — output at elevated switching frequency](../assets/images/simulink-high-freq-output.jpeg){ loading=lazy width=80% }
+  <figcaption>Simulink output at an elevated switching frequency — used during the parameter sweeps that informed the final 5 kHz choice. Higher f<sub>sw</sub> sharpens the output and pushes the ripple energy up where a smaller LC filter can attenuate it, at the cost of switching loss.</figcaption>
+</figure>
+
 ## What the model does *not* capture
 
 - **Parasitic inductance.** Gate-loop and DC-bus parasitics that cause real-world voltage spikes are not in the ideal-switch model. The snubber design (22 Ω 2 W + 2.2 nF / 630 V) was specified to bound these on the bench, not in simulation.

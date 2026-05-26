@@ -1,5 +1,10 @@
 # Model architecture
 
+<figure markdown="span">
+  ![Final Simulink circuit — the as-modeled topology](../assets/images/simulink-final-circuit.jpeg){ loading=lazy width=85% }
+  <figcaption>The final Simulink circuit — two cascaded H-bridges with the TLP250-isolated gate drive (per <a href="../../design-notes/chb-isolation/">chb-isolation</a>), the LS-PWM/PSC modulator, and the LC filter + load stage. This is the v3 model (<code>chb-5level-rl-nospike.slx</code>) after the snubber-tuning pass that removed V<sub>DS</sub> ringing.</figcaption>
+</figure>
+
 Three Simulink models live in [`simulation/simulink/`](https://github.com/feaksel/chb-inverter/tree/main/simulation/simulink). They share a common block structure; the differences are in the gate-driver model, the modulator, and the load.
 
 ## Common structure
@@ -50,6 +55,11 @@ Adds:
 - **No spike** in the title refers to the snubber-tuning pass that removed the V<sub>DS</sub> ringing the earlier model showed.
 
 Used to size the bench LC filter (planned roadmap item; not built).
+
+<figure markdown="span">
+  ![Simulink — output waveform without snubbers (showing V_DS spikes)](../assets/images/simulink-output-no-snubbers.jpeg){ loading=lazy width=80% }
+  <figcaption>The "before" view — Simulink output when the snubber network is removed. The V<sub>DS</sub> ringing visible here is exactly what the 22 Ω 2 W + 2.2 nF / 630 V snubber on every MOSFET damps in the as-built hardware.</figcaption>
+</figure>
 
 ## How to run
 

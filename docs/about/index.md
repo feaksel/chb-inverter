@@ -6,9 +6,10 @@ hide:
 
 # About
 
-<p align="center">
-  <img src="../assets/images/demo-stand-group-photo.jpeg" alt="Cereyan Hacıları on the demo stand" width="80%"/>
-</p>
+<figure markdown="span">
+  ![Cereyan Hacıları on the demo stand](../assets/images/demo-stand-group-photo.jpeg){ loading=lazy width=80% }
+  <figcaption>Cereyan Hacıları on the demo stand.</figcaption>
+</figure>
 
 The 5-Level Cascaded H-Bridge Inverter project was built by **Cereyan Hacıları** (Turkish: "The Current Pilgrims") as the **ELE 401 / 402 graduation project** at **Hacettepe University, Department of Electrical and Electronics Engineering**, Spring 2026.
 

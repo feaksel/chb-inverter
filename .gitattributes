@@ -62,6 +62,7 @@ docs/assets/images/scope-pwm-*.jpg         filter=lfs diff=lfs merge=lfs -text
 docs/assets/images/100v-output-5-levels.png filter=lfs diff=lfs merge=lfs -text
 docs/assets/images/demo-poster.jpeg        filter=lfs diff=lfs merge=lfs -text
 docs/assets/images/inverter-pcb.png        filter=lfs diff=lfs merge=lfs -text
+docs/assets/images/breadboard-*.jpg        filter=lfs diff=lfs merge=lfs -text
 # Experimental RISC-V SoC tape-out artifacts (GDS files up to 49 MB; renders up to 4 MB each)
 experimental/risc-v-soc/macros/**/*.gds    filter=lfs diff=lfs merge=lfs -text
 experimental/risc-v-soc/renders/**/*.png   filter=lfs diff=lfs merge=lfs -text

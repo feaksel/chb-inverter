@@ -1,5 +1,10 @@
 # Pin map
 
+<figure markdown="span">
+  ![STM32 Nucleo-F303RE pin assignments — the as-wired layout](../assets/images/stm32-pins.jpeg){ loading=lazy width=85% }
+  <figcaption>STM32 Nucleo-F303RE pin assignments for the as-built design — the visual companion to the tables below.</figcaption>
+</figure>
+
 The as-wired GPIO assignments on the STM32 Nucleo-F303RE. This table supersedes the v3.1 build-guide table — see the errata at the bottom of this page.
 
 ## PWM outputs (TIM1 + TIM8, complementary)

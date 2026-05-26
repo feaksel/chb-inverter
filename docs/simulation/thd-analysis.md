@@ -7,6 +7,11 @@
 
 ## Pre-hardware (simulation)
 
+<figure markdown="span">
+  ![Simulink — 5-level output voltage + per-MOSFET current](../assets/images/simulink-5-level-output-and-current.jpeg){ loading=lazy width=80% }
+  <figcaption>Simulink result — top trace: the 5-level cascade output voltage at the headline operating point; bottom trace: per-MOSFET current. This is the model output that produced the <strong>4.9 % THD</strong> prediction.</figcaption>
+</figure>
+
 The Simulink LS-PWM model predicted **THD = 4.9 %** at the headline operating point (5 kHz switching, 50 Hz fundamental, modulation index 0.95, resistive load ≈ 400 W). This figure is the one quoted in the ELE 401 interim report and the ELE 402 interim report v4.
 
 Why 4.9 % is the design target:

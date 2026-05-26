@@ -31,6 +31,11 @@ The IR2110 (and any bootstrap-based driver) has its **COM** pin connected to V<s
 
 Simulink validation (per the ELE 401 interim report §4.4) showed gate drive voltage dropping to < 5 V on Bridge 2 with IR2110 — MOSFETs never fully turn on. **This was the deciding evidence** that the IR2110 path could not be made to work and the project had to commit to optical isolation.
 
+<figure markdown="span">
+  ![Simulink — IR2110 circuit, evaluated and rejected for CHB](../assets/images/simulink-ir2110-circuit-rejected.jpeg){ loading=lazy width=80% }
+  <figcaption>The IR2110 simulation that killed the bootstrap path for CHB — Simulink behavioural model of the IR2110 driving an upper-bridge MOSFET. The bootstrap cap reverse-biases under the cascade's floating reference; gate drive collapses below threshold. The team committed to TLP250 + B0515S after this simulation.</figcaption>
+</figure>
+
 ### 2. Common-mode coupling destroys the controller
 
 Even if the gate driver problem were somehow solved (it can't be, but suppose), the SHARED 15 V supply between Bridge 2 and the controller is a common-mode path. When Bridge 2 swings its floating ground by 50 V at 5 kHz, that same V is impressed on the controller's V<sub>CC</sub> — at high di/dt through the parasitic capacitance of the shared supply.
