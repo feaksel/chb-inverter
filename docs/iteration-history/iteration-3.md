@@ -4,6 +4,11 @@ title: Iteration 3 — grounding rework, MISO topology change, MOSFET swap
 
 # Iteration 3 — grounding rework, MISO topology change, MOSFET swap
 
+<figure markdown="span">
+  ![Bench session at 13:09, 2026-03-05 — mid-iteration-3 testing](https://raw.githubusercontent.com/feaksel/chb-inverter/main/hardware/single-bridge-v4/photos/bench-2026-03-05-1309-a.jpg){ loading=lazy width=80% }
+  <figcaption>Bench session during iteration 3, March 5, 2026. The intermittent sensor-loss / status-corruption symptoms documented below were what triggered the iteration-4 grounding redesign.</figcaption>
+</figure>
+
 > **Status:** superseded. KiCad zip backups for iteration 3 are preserved at [`hardware/legacy/iteration-3/`](https://github.com/feaksel/chb-inverter/tree/main/hardware/legacy/iteration-3) — `untrackedCHB_INVERTER.zip` (the working tree at the iteration-3 freeze) and `2026-04-07_Full_Bridge_Backup.zip` (a mid-iteration snapshot).
 
 ## What was attempted

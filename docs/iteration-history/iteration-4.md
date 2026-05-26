@@ -4,6 +4,11 @@ title: Iteration 4 — as-built (two single-bridge modules, IRFB4110, PSC)
 
 # Iteration 4 — as-built (two single-bridge modules, IRFB4110, PSC)
 
+<figure markdown="span">
+  ![Five distinct cascade levels at 100 V — the iteration-4 demonstration result](../assets/images/100v-output-5-levels.png){ loading=lazy width=80% }
+  <figcaption>The iteration-4 deliverable on the scope — five distinct cascade output levels at 100 V under sustained PSC-PWM, no filter. Both bridges thermally matched, no protection trips during the run.</figcaption>
+</figure>
+
 > **Status:** as-built. **Bench-validated and demonstrated.** KiCad project at [`hardware/single-bridge-v4/kicad/`](https://github.com/feaksel/chb-inverter/tree/main/hardware/single-bridge-v4/kicad), gerbers at [`hardware/single-bridge-v4/gerbers/`](https://github.com/feaksel/chb-inverter/tree/main/hardware/single-bridge-v4/gerbers), photos at [`hardware/single-bridge-v4/photos/`](https://github.com/feaksel/chb-inverter/tree/main/hardware/single-bridge-v4/photos) and `docs/assets/images/` (demo day).
 
 ## What was attempted

@@ -6,10 +6,15 @@ hide:
 
 # 5-Level Cascaded H-Bridge Inverter
 
+<figure markdown="span">
+  ![Five distinct cascade output levels at 100 V](assets/images/100v-output-5-levels.png){ loading=lazy }
+  <figcaption>The headline result — 100 V output with five distinct cascade levels under sustained PSC-PWM at 5 kHz, no filter.</figcaption>
+</figure>
+
 Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB modules and an STM32 Nucleo-F303RE running phase-shifted carrier PWM at 5&nbsp;kHz. Built as the ELE 401/402 graduation project at Hacettepe University EEE — Spring 2026.
 
 !!! success "Project status — May 2026"
-    Hardware fabricated, populated, and bench-validated. Firmware deployed. Five distinct cascade output levels confirmed on the oscilloscope; bridges thermally balanced under sustained load. Demonstration successful.
+    Hardware fabricated, populated, and bench-validated. Firmware deployed. Five distinct cascade output levels confirmed on the oscilloscope at 100 V cascade output; bridges thermally balanced under sustained load. Demonstration successful.
 
 <div class="grid cards" markdown>
 
@@ -45,6 +50,22 @@ Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB
 
     [:octicons-arrow-right-24: Bring-up](bringup/index.md)
 
+-   :material-file-document-multiple-outline:{ .lg .middle } &nbsp;**Final report**
+
+    ---
+
+    Consolidated graduation report — supersedes ELE 401 and ELE 402 interim reports.
+
+    [:octicons-arrow-right-24: Final report](final-report/index.md)
+
+-   :material-account-group:{ .lg .middle } &nbsp;**Team & About**
+
+    ---
+
+    Cereyan Hacıları + supervisor + institution + license.
+
+    [:octicons-arrow-right-24: About](about/index.md)
+
 </div>
 
 ## What's in this documentation
@@ -57,7 +78,7 @@ Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB
 | [Dashboard](dashboard/index.md) | The PySide6 operator interface — install, run, use. |
 | [Simulation](simulation/index.md) | The Simulink model and the THD analysis that informed the topology choices. |
 | [Bring-up](bringup/index.md) | First-bench-session notes and the hardware bring-up reference. |
-| [Design notes](design-notes/index.md) | Standalone design-decision pieces — bootstrap fundamentals, CHB isolation, PSC vs. LSPWM, etc. |
+| [Design notes](design-notes/index.md) | Standalone design-decision pieces — bootstrap fundamentals, CHB isolation, PSC vs. LSPWM, IGBT vs. MOSFET, grounding fix. |
 | [Iteration history](iteration-history/index.md) | Per-iteration story: what was attempted, what failed, what was learned. |
 | [Roadmap](roadmap/index.md) | Future work — what would be picked up after the graduation deliverable. |
 | [Final report](final-report/index.md) | Consolidated graduation report (supersedes ELE 401 + ELE 402 interim). |
@@ -65,7 +86,10 @@ Modular cascaded H-bridge multilevel inverter built around two single-bridge PCB
 
 ## Team
 
-Project group **Cereyan Hacıları**, supervised by **Assoc. Prof. Dr. Rasım Doğan**.
+<figure markdown="span">
+  ![Cereyan Hacıları on the demo stand](assets/images/demo-stand-group-photo.jpeg){ loading=lazy width=70% }
+  <figcaption>Project group <b>Cereyan Hacıları</b> on the demo stand, under <b>Assoc. Prof. Dr. Rasım Doğan</b>.</figcaption>
+</figure>
 
 | Person | Role |
 |---|---|

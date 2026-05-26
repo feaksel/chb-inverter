@@ -4,6 +4,11 @@ title: Bill of materials
 
 # Bill of materials
 
+<figure markdown="span">
+  ![Top-down KiCad render — the board this BOM populates](../../hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
+  <figcaption>The single-bridge v4 PCB. Two identical instances of this board are populated from the BOM below; the project total is two modules + spares.</figcaption>
+</figure>
+
 The full BOM is at [`hardware/single-bridge-v4/bom.csv`](https://github.com/feaksel/chb-inverter/blob/main/hardware/single-bridge-v4/bom.csv) in the repository (GitHub renders CSV as a sortable table). The original BOM spreadsheet sources are also kept alongside for traceability:
 
 | Source | Purpose |

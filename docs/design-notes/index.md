@@ -1,5 +1,10 @@
 # Design notes
 
+<figure markdown="span">
+  ![Cascade-control overlap — modulation visual](../assets/images/cascade-control-overlap.png){ loading=lazy width=75% }
+  <figcaption>The two cells' carriers overlap to produce the cascade output. This visual ties together the modulation, isolation, and gate-drive arguments that each design note covers in detail.</figcaption>
+</figure>
+
 Standalone explanations of the engineering decisions that shaped the as-built design. Each note answers a single "why did we do it this way?" question. Drawn from the firmware CHANGELOG, the ELE 401 / 402 interim reports, the prior-chat design discussion, and the team's own bench experience.
 
 | Note | Question it answers |

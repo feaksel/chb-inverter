@@ -1,5 +1,10 @@
 # Bring-up
 
+<figure markdown="span">
+  ![Lab power sources during bench test](../assets/images/lab-power-sources-test.jpeg){ loading=lazy width=80% }
+  <figcaption>Bench power supplies on a bring-up session — two independent isolated DC sources, one per bridge, plus a separate 15 V for the gate drive.</figcaption>
+</figure>
+
 Two documents cover putting the populated boards on the bench:
 
 | Page | When to use it |

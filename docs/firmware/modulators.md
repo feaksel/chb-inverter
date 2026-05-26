@@ -1,5 +1,10 @@
 # Modulators
 
+<figure markdown="span">
+  ![Five distinct cascade levels at 100 V — the PSC bench result](../assets/images/100v-output-5-levels.png){ loading=lazy width=80% }
+  <figcaption>PSC bench result — five distinct cascade output levels at 100 V, no filter. This is the modulator's headline output and the project deliverable.</figcaption>
+</figure>
+
 Three modulators ship in the firmware. The active one is selected at runtime over UART (`MOD STAIR|PSC|STAIR_ALT`) without reflashing.
 
 ## Comparison

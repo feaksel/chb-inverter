@@ -1,5 +1,10 @@
 # THD analysis
 
+<figure markdown="span">
+  ![Five distinct cascade levels at 100 V — the bench-validated result](../assets/images/100v-output-5-levels.png){ loading=lazy width=80% }
+  <figcaption>Bench result — 100 V cascade output, five distinct levels visible without a filter. The Simulink prediction (4.9 % THD pre-filter) holds at this operating point modulo the ideal-switch caveats noted in the <a href="overview/">overview</a>.</figcaption>
+</figure>
+
 ## Pre-hardware (simulation)
 
 The Simulink LS-PWM model predicted **THD = 4.9 %** at the headline operating point (5 kHz switching, 50 Hz fundamental, modulation index 0.95, resistive load ≈ 400 W). This figure is the one quoted in the ELE 401 interim report and the ELE 402 interim report v4.

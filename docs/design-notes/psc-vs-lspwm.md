@@ -4,6 +4,11 @@ title: PSC vs. LSPWM
 
 # PSC vs. LSPWM
 
+<figure markdown="span">
+  ![PSC cascade-output result on the scope](../assets/images/100v-output-5-levels.png){ loading=lazy width=80% }
+  <figcaption>PSC at the bench — five distinct cascade levels at 100 V output, no filter, both bridges thermally matched. The argument below explains why we got here from the earlier IPD path.</figcaption>
+</figure>
+
 > **Single-sentence summary.** The team simulated and partially implemented **IPD LS-PWM** (Level-Shifted Carrier PWM, In-Phase Disposition), then switched to **PSC-PWM** (Phase-Shifted Carriers) in the final firmware. The deciding factor was bridge-loss asymmetry — IPD makes Bridge 1 carry the inner-band switching forever; PSC distributes switching evenly across both bridges.
 
 Both modulators produce the same 5 distinct cascade output levels (−2V<sub>DC</sub>, −V<sub>DC</sub>, 0, +V<sub>DC</sub>, +2V<sub>DC</sub>) for a 2-cell CHB. The difference is in **how each level is reached** — and that turns out to matter for thermal balance, switching loss, and bench-debug effort.

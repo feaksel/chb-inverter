@@ -22,13 +22,13 @@ Modular **5-level cascaded H-bridge multilevel inverter** built around two singl
 
 <table>
   <tr>
-    <td align="center" width="33%"><a href="https://feaksel.github.io/chb-inverter/"><img src="docs/assets/images/abstract-system-diagram.png" width="220"/></a><br/><b>Documentation site</b></td>
+    <td align="center" width="33%"><a href="https://feaksel.github.io/chb-inverter/"><img src="docs/assets/images/site_image.png" width="220"/></a><br/><b>Documentation site</b></td>
     <td align="center" width="33%"><a href="docs/hardware/build-guide-v4.md"><img src="docs/assets/images/schematic-full-design.png" width="220"/></a><br/><b>Build Guide v4.0</b></td>
     <td align="center" width="33%"><a href="docs/final-report/"><img src="docs/assets/images/demo-poster.jpeg" width="220"/></a><br/><b>Final report</b></td>
   </tr>
   <tr>
     <td align="center"><a href="firmware/stm32-f303re/"><img src="docs/assets/images/stm32-only-diagram.png" width="220"/></a><br/><b>Firmware (STM32 + dashboard)</b></td>
-    <td align="center"><a href="hardware/single-bridge-v4/"><img src="hardware/single-bridge-v4/renders/pcb-3d-render.png" width="220"/></a><br/><b>Hardware (KiCad + BOM + gerbers)</b></td>
+    <td align="center"><a href="hardware/single-bridge-v4/"><img src="hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg" width="220"/></a><br/><b>Hardware (KiCad + BOM + gerbers)</b></td>
     <td align="center"><a href="docs/bringup/first-session.md"><img src="docs/assets/images/scope-pwm-cascade-output.jpeg" width="220"/></a><br/><b>Bring-up session</b></td>
   </tr>
 </table>
@@ -126,7 +126,7 @@ The [`experimental/`](experimental/) directory contains exploratory tracks that 
 - [`experimental/risc-v-soc/`](experimental/risc-v-soc/) — A custom **RV32IM SoC** with integrated PWM / ADC / protection / UART / GPIO peripherals, taken through full **Cadence Genus → Innovus → GDSII** flow against the **SkyWater 130 nm PDK**. No tape-out; no FPGA equivalence check. Preserved for continuity.
 - [`experimental/fpga-controller/`](experimental/fpga-controller/) — Placeholder for a future FPGA-based controller.
 
-For the roadmap of work that *would* extend the as-built inverter, see [`docs/roadmap/`](docs/roadmap/).
+For the roadmap of work that _would_ extend the as-built inverter, see [`docs/roadmap/`](docs/roadmap/).
 
 ## Contributing
 

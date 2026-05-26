@@ -4,6 +4,11 @@ title: Grounding fix
 
 # Grounding fix
 
+<figure markdown="span">
+  ![Top-down KiCad render — the iteration-4 layout that fixes the grounding issue](../../hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
+  <figcaption>The iteration-4 single-bridge module. The 4-layer stack-up keeps the controller-side and bridge-side grounds physically separated through the inner pours — exactly the fix this page documents.</figcaption>
+</figure>
+
 > **Single-sentence summary.** Iteration 3 of the PCB had a parasitic coupling between **5V_GND** (controller side) and **50V_GND** (bridge side) that defeated the isolation architecture. Iteration 4 fixed it through stricter layer separation and via placement on the 4-layer JLCPCB stack-up. The populated boards now run clean — confirmed by the team.
 
 ## The two grounds the project deliberately keeps separate

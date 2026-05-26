@@ -1,5 +1,10 @@
 # Firmware
 
+<figure markdown="span">
+  ![STM32 + the firmware/dashboard architecture](../assets/images/stm32-only-diagram.png){ loading=lazy width=75% }
+  <figcaption>The STM32 F303RE drives both bridges over TIM1 (Bridge 1) and TIM8 (Bridge 2). Bit-banged MCP3201 sensing crosses the isolation barrier through 6N137 optocouplers; UART telemetry feeds the PySide6 dashboard.</figcaption>
+</figure>
+
 STM32 source for the controller and the PySide6 operator dashboard.
 
 The firmware tree is imported via `git subtree` from the upstream repository [feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE](https://github.com/feaksel/5-Level-Cascaded-H-bridge-Inverter-with-STM32-Nucleo-F303RE), branch `pwm-rewrite-configurable`. All 11 upstream commits are preserved in this repo's `git log`.

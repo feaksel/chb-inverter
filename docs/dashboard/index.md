@@ -1,5 +1,10 @@
 # Dashboard
 
+<figure markdown="span">
+  ![Lab testing setup — the dashboard running live alongside the bench rig](../assets/images/lab-testing-setup-hero.jpeg){ loading=lazy width=80% }
+  <figcaption>The PySide6 operator dashboard running on the bench PC during a live PSC session. The dashboard handles every command the firmware supports plus 20 Hz telemetry visualization, fault display, and replay-log capture.</figcaption>
+</figure>
+
 The PySide6 operator dashboard that talks to the STM32 over UART.
 
 | Page | What it covers |
