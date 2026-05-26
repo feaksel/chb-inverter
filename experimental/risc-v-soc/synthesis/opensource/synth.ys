@@ -1,0 +1,73 @@
+#===============================================================================
+# Yosys Synthesis Script
+# For: Custom RISC-V Core (RV32IM)
+# Output: Gate-level netlist (technology-independent)
+#===============================================================================
+
+# Read Verilog files
+read_verilog -sv ../../rtl/core/regfile.v
+read_verilog -sv ../../rtl/core/alu.v
+read_verilog -sv ../../rtl/core/decoder.v
+read_verilog -sv ../../rtl/core/custom_riscv_core.v
+read_verilog -sv ../../rtl/core/custom_core_wrapper.v
+
+# Hierarchy (top module)
+hierarchy -check -top custom_core_wrapper
+
+# Translate processes to netlists
+proc
+
+# Flatten design (optional, uncomment if needed)
+# flatten
+
+# Optimize
+opt
+
+# Memory mapping
+memory
+
+# Optimize again
+opt
+
+# FSM optimization
+fsm
+opt
+
+# Technology mapping (generic)
+techmap
+opt
+
+# ABC optimization (generic gate-level)
+abc -g AND,OR,XOR,NAND,NOR,XNOR
+
+# Clean up
+clean
+
+# Statistics
+stat
+
+# Generate reports
+tee -o reports/synthesis.txt stat
+
+# Write outputs
+write_verilog -noattr build/netlist_yosys.v
+write_json build/design.json
+
+# Print summary
+echo "\n"
+echo "=========================================="
+echo "Synthesis Complete!"
+echo "=========================================="
+echo ""
+echo "Output files:"
+echo "  build/netlist_yosys.v  - Gate-level netlist"
+echo "  build/design.json      - Design JSON"
+echo "  reports/synthesis.txt  - Statistics"
+echo ""
+echo "Next steps:"
+echo "  1. Review reports/synthesis.txt for gate count"
+echo "  2. Compare with Cadence Genus results (at school)"
+echo "  3. If looks good, ready for Cadence synthesis"
+echo ""
+echo "To view netlist: less build/netlist_yosys.v"
+echo "=========================================="

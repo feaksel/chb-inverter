@@ -34,6 +34,12 @@ Scope traces from the PSC bench run. The cascade-output capture confirms five di
 
 ![PSC cascade output on scope](../assets/images/scope-pwm-cascade-output.jpeg){ loading=lazy }
 
+![PWM working — early scope capture](../assets/images/scope-pwm-working.jpg){ loading=lazy }
+
+![PWM at the correct frequency](../assets/images/scope-pwm-correct-freq.jpg){ loading=lazy }
+
+![Full correct PWM output](../assets/images/scope-pwm-full-correct.jpg){ loading=lazy }
+
 </div>
 
 ## Earlier bench session (2026-03-05)

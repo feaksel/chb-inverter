@@ -1,45 +1,92 @@
 # 5-Level Cascaded H-Bridge Inverter
 
-Modular cascaded H-bridge inverter using phase-shifted carrier PWM on STM32 Nucleo-F303RE, with a PySide6 operator dashboard, designed and built for the ELE 401/402 graduation project at Hacettepe University.
+<p align="center">
+  <img src="docs/assets/images/demo-stand-wired.jpeg" alt="The 5-level CHB inverter on the demo stand, fully wired" width="80%"/>
+</p>
 
-**Status:** Hardware fabricated and bench-validated. Firmware deployed. Demonstration successful.
+<p align="center">
+  <a href="https://github.com/feaksel/chb-inverter/actions/workflows/docs.yml"><img alt="docs" src="https://github.com/feaksel/chb-inverter/actions/workflows/docs.yml/badge.svg"/></a>
+  <a href="https://github.com/feaksel/chb-inverter/actions/workflows/firmware-build.yml"><img alt="firmware" src="https://github.com/feaksel/chb-inverter/actions/workflows/firmware-build.yml/badge.svg"/></a>
+  <a href="https://github.com/feaksel/chb-inverter/actions/workflows/dashboard-tests.yml"><img alt="dashboard tests" src="https://github.com/feaksel/chb-inverter/actions/workflows/dashboard-tests.yml/badge.svg"/></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue"/></a>
+  <a href="https://feaksel.github.io/chb-inverter/"><img alt="docs site" src="https://img.shields.io/badge/docs-feaksel.github.io%2Fchb--inverter-teal"/></a>
+</p>
 
-| | |
-|---|---|
-| Docs site | https://feaksel.github.io/chb-inverter/ |
-| Firmware | [`firmware/stm32-f303re/`](firmware/stm32-f303re/) |
-| Hardware | [`hardware/single-bridge-v4/`](hardware/single-bridge-v4/) |
-| Build guide | [Build Guide v4.0](docs/hardware/build-guide-v4.md) |
-| Bring-up notes | [First bench session](docs/bringup/first-session.md) |
-| Final report | [Graduation report](docs/final-report/index.md) |
+Modular **5-level cascaded H-bridge multilevel inverter** built around two single-bridge PCB modules and an **STM32 Nucleo-F303RE** running **phase-shifted carrier PWM** at 5 kHz. Bench-validated, demonstrated, and now consolidated into a citable engineering record. Built as the **ELE 401/402 graduation project** at **Hacettepe University EEE** — Spring 2026.
+
+> **Status:** Hardware fabricated, populated, and bench-validated. Firmware deployed. Five distinct cascade output levels confirmed on the oscilloscope. Bridges thermally balanced under sustained load. **Demonstration successful.**
+
+## Quick links
+
+<table>
+  <tr>
+    <td align="center"><a href="https://feaksel.github.io/chb-inverter/"><img src="docs/assets/images/abstract-system-diagram.png" width="220"/></a><br/><b>Documentation site</b></td>
+    <td align="center"><a href="docs/hardware/build-guide-v4.md"><img src="docs/assets/images/schematic-full-design.png" width="220"/></a><br/><b>Build Guide v4.0</b></td>
+    <td align="center"><a href="docs/assets/pdfs/CHB_Inverter_Poster_v5.pdf"><img src="docs/assets/images/cascade-control-overlap.png" width="220"/></a><br/><b>Project poster (PDF)</b></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="firmware/stm32-f303re/"><img src="docs/assets/images/stm32-only-diagram.png" width="220"/></a><br/><b>Firmware (STM32 + dashboard)</b></td>
+    <td align="center"><a href="hardware/single-bridge-v4/"><img src="docs/assets/images/schematic-modular.png" width="220"/></a><br/><b>Hardware (KiCad + BOM + gerbers)</b></td>
+    <td align="center"><a href="docs/final-report/"><img src="docs/assets/images/hybrid-system-diagram.png" width="220"/></a><br/><b>Consolidated final report</b></td>
+  </tr>
+</table>
+
+## The headline result
+
+Five distinct cascade output levels on the oscilloscope, both bridges thermally matched, under sustained PSC-PWM operation at 5 kHz:
+
+<p align="center">
+  <img src="docs/assets/images/scope-pwm-cascade-output.jpeg" alt="Oscilloscope capture of the PSC cascade output — 5 distinct levels visible" width="60%"/>
+</p>
 
 ## What was built
 
-Two identical single-bridge PCB modules (4-layer, JLCPCB-fabricated, IRFB4110 MOSFETs) cascaded to produce 5 distinct output levels at the inverter terminals. STM32 F303RE generates phase-shifted carrier PWM at 5 kHz with bit-banged MCP3201 sensing isolated via 6N137 optocouplers. A PySide6 desktop dashboard provides full operator control over UART.
+Two identical single-bridge PCB modules (4-layer JLCPCB, IRFB4110 power MOSFETs) cascaded to produce 5 distinct output voltage levels. The STM32 F303RE generates **phase-shifted carrier PWM** at 5 kHz with bit-banged **MCP3201** sensing isolated via **6N137** optocouplers. A **PySide6** desktop dashboard provides full operator control over UART.
 
-The PSC modulation was validated on the oscilloscope at 5 distinct cascade levels, bridges thermally balanced under sustained load.
+The PSC modulation gives natural bridge-balance — both H-bridges carry equal switching load. The deviation from the build-guide's original IPD LS-PWM (which had inherent bridge-loss asymmetry) is documented in the [PSC vs. LSPWM design note](docs/design-notes/psc-vs-lspwm.md). The iteration story from the early IRFZ44N / IPD layouts through the as-built IRFB4110 / PSC design is in [iteration history](docs/iteration-history/).
 
 ## Team
 
-| Role | Person |
-|---|---|
-| Lead, firmware, dashboard | Furkan Emir Aksel |
-| Hardware, bring-up | Ahmet Koçak |
-| Simulation, analysis | Faruk Gökhan Abay |
-| Hardware, assembly | Mücahit Aydın |
-| Supervisor | Assoc. Prof. Dr. Rasım Doğan |
+**Project group "Cereyan Hacıları"** ("The Current Pilgrims"), under **Assoc. Prof. Dr. Rasım Doğan**.
 
-Hacettepe University, Department of Electrical & Electronics Engineering — Ankara, 2026.
+<p align="center">
+  <img src="docs/assets/images/demo-stand-group-photo.jpeg" alt="Cereyan Hacıları on the demo stand" width="70%"/>
+</p>
+
+<table>
+  <tr>
+    <td align="center"><b>Furkan Emir Aksel</b><br/>Lead, firmware, dashboard</td>
+    <td align="center"><b>Ahmet Koçak</b><br/>Hardware, bring-up</td>
+    <td align="center"><b>Faruk Gökhan Abay</b><br/>Simulation, analysis</td>
+    <td align="center"><b>Mücahit Aydın</b><br/>Hardware, assembly</td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/assets/images/hacettepe-logo.png" alt="Hacettepe University" height="64"/>
+  <br/>
+  <i>Hacettepe University, Department of Electrical and Electronics Engineering — Ankara, Türkiye, 2026.</i>
+</p>
 
 ## Repository layout
 
 ```
 chb-inverter/
 ├── docs/              # MkDocs Material source — every .md becomes a published page
-├── hardware/          # KiCad, gerbers, BOM, photos
-├── firmware/          # STM32 source (subtree of the firmware repo, history preserved)
-├── simulation/        # Simulink models and analysis
-├── experimental/      # Unverified tracks (RISC-V SoC, FPGA emulation)
+│   ├── hardware/      # Architecture, build guide v4, BOM, schematic, PCB, photos
+│   ├── firmware/      # Pin map, state machine, UART protocol, modulators, protection
+│   ├── dashboard/     # Operator workflow, install, architecture
+│   ├── simulation/    # Simulink THD analysis
+│   ├── bringup/       # First-session + reference (rendered from firmware tree)
+│   ├── design-notes/  # 5 design-decision deep-dives (bootstrap, isolation, PSC, IGBT, grounding)
+│   ├── iteration-history/  # Per-iteration narrative (4 rounds, 1 → 4 as-built)
+│   ├── roadmap/       # 6 future-work tracks
+│   ├── final-report/  # Consolidated graduation report
+│   └── about/         # Team, supervisor, institution, license
+├── hardware/          # KiCad project, gerbers, BOM CSV, populated photos
+├── firmware/          # STM32 source (git subtree, full history) + PySide6 dashboard
+├── simulation/        # Simulink models (3 variants) + analysis
+├── experimental/      # RISC-V SoC + FPGA controller — unverified tracks
 ├── tools/             # BOM validator, link checker, PCB renderer
 └── tests/             # Repo-level CI tests
 ```
@@ -50,8 +97,35 @@ Apache-2.0. See [LICENSE](LICENSE).
 
 ## Citation
 
-See [CITATION.cff](CITATION.cff) for the citable metadata.
+If this project informs academic work, please cite it. The full citation metadata is in [CITATION.cff](CITATION.cff).
 
-## Experimental / future work
+```bibtex
+@software{aksel_2026_chb_inverter,
+  author       = {Aksel, Furkan Emir and Koçak, Ahmet and Abay, Faruk Gökhan and Aydın, Mücahit},
+  title        = {{5-Level Cascaded H-Bridge Inverter with STM32 Nucleo-F303RE}},
+  year         = 2026,
+  month        = 5,
+  publisher    = {Hacettepe University, Department of Electrical and Electronics Engineering},
+  version      = {1.0.0},
+  url          = {https://github.com/feaksel/chb-inverter}
+}
+```
 
-The [`experimental/`](experimental/) directory contains tracks that were explored but **not validated in silicon or on an FPGA**. They are kept in the repo for continuity but should not be relied on. See the [roadmap](docs/roadmap/) for what could be picked up next.
+## Future / experimental work
+
+The [`experimental/`](experimental/) directory contains exploratory tracks that were **not** validated in silicon and are **not** part of the graduation deliverable:
+
+- [`experimental/risc-v-soc/`](experimental/risc-v-soc/) — A custom **RV32IM SoC** with integrated PWM / ADC / protection / UART / GPIO peripherals, taken through full **Cadence Genus → Innovus → GDSII** flow against the **SkyWater 130 nm PDK**. No tape-out; no FPGA equivalence check. Preserved for continuity.
+- [`experimental/fpga-controller/`](experimental/fpga-controller/) — Placeholder for a future FPGA-based controller.
+
+For the roadmap of work that *would* extend the as-built inverter, see [`docs/roadmap/`](docs/roadmap/).
+
+## Contributing
+
+This repository was produced as a graduation project; it is **not** actively maintained for feature contributions. Issues and pull requests addressing documentation errata, bring-up procedure improvements, or porting to other STM32 variants are welcome. For substantive design changes, please open an issue first to discuss scope.
+
+---
+
+<p align="center">
+  <sub>Built in Ankara, Türkiye · Spring 2026</sub>
+</p>
