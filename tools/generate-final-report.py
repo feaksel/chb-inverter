@@ -309,9 +309,12 @@ class FooterCanvas(canvas.Canvas):
         self.setStrokeColor(TEAL)
         self.setLineWidth(0.6)
         self.line(2 * cm, 1.6 * cm, A4[0] - 2 * cm, 1.6 * cm)
-        self.setFont("Helvetica", 9)
+        # Use Arial (FONT) — Helvetica doesn't have ı, ş, ğ, ç, ü, ö
+        self.setFont(FONT, 9)
         self.setFillColor(GREY_TEXT)
-        self.drawString(2 * cm, 1.1 * cm, "ELE 402 — Cereyan Hacıları — 5-Level CHB Inverter Final Report")
+        # Plain hyphens (not em-dashes) for consistent rendering
+        self.drawString(2 * cm, 1.1 * cm,
+                        "ELE 402 - Cereyan Hacıları - 5-Level CHB Inverter Final Report")
         self.drawRightString(A4[0] - 2 * cm, 1.1 * cm, f"Page {page} of {total}")
         self.restoreState()
 
@@ -600,13 +603,16 @@ def section_project_description() -> list:
                  "optical gate drive and isolated MCP3201 sensing. Two identical instances "
                  "of this module are cascaded externally to produce the 5-level output.",
                  width_cm=14))
-    s.append(P("System block diagram", H3))
-    s.extend(fig(Path("diagram-system-block.png"),
-                 "System block diagram - two H-bridge cells driven from a single "
-                 "STM32 controller. Solid arrows are PWM (TIM1 / TIM8); dotted "
-                 "arrows are isolated MCP3201 sensing returns through 6N137 "
-                 "optocouplers. The dashboard talks to the controller over UART.",
-                 width_cm=15))
+    # Wrap heading + figure in KeepTogether so the H3 never lands at the
+    # bottom of a page with the image pushed to the next page.
+    sys_block_heading = P("System block diagram", H3)
+    sys_block_fig = fig(Path("diagram-system-block.png"),
+                        "System block diagram - two H-bridge cells driven from a single "
+                        "STM32 controller. Solid arrows are PWM (TIM1 / TIM8); dotted "
+                        "arrows are isolated MCP3201 sensing returns through 6N137 "
+                        "optocouplers. The dashboard talks to the controller over UART.",
+                        width_cm=15)
+    s.append(KeepTogether([sys_block_heading, *sys_block_fig]))
     s.append(P("Key specifications", H3))
     spec_table = themed_table([
         ["Parameter", "Value"],
