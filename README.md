@@ -1,9 +1,9 @@
 # 5-Level Cascaded H-Bridge Inverter
 
 <p align="center">
-  <img src="docs/assets/images/inverter-pcb.png" alt="Half-bridge module — fully populated hardware" width="80%"/>
+  <img src="docs/assets/images/inverter-pcb.png" alt="Populated single-bridge v4 PCB module — IRFB4110 H-bridge with TLP250 optical gate drive and isolated MCP3201 sensing" width="80%"/>
   <br/>
-  <sub><i>Hardware Module</i></sub>
+  <sub><i>One of two identical single-bridge v4 modules — 4-layer JLCPCB, IRFB4110 power MOSFETs in a full H-bridge, TLP250 optical gate drive on a B0515S isolated 15 V rail, bit-banged MCP3201 sensing through 6N137 optocouplers. Cascading two of these externally produces the 5-level output shown below.</i></sub>
 </p>
 
 <p align="center">
