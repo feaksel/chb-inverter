@@ -26,13 +26,23 @@ The team's demo of the running 5-level cascaded inverter.
 
 ## Oscilloscope captures
 
-Scope traces from the PSC bench run. The cascade-output capture confirms five distinct levels — the project deliverable.
+### Headline — 100 V output, 5 distinct cascade levels
+
+The project deliverable, captured on the scope at the demo:
+
+![100 V output, 5 distinct cascade levels under sustained PSC-PWM at 5 kHz, no filter](../assets/images/100v-output-5-levels.png){ loading=lazy }
+
+This is the result that satisfies the graduation spec: **5 distinct cascade output levels visible without an output filter**, at 100 V cascade output, under sustained operation. Both bridges thermally balanced; no protection trips during the run.
+
+### Other scope traces
+
+Other captures from the PSC bench run — earlier sweeps that show the path to the headline above:
 
 <div class="grid" markdown>
 
-![PWM at the scope — initial capture](../assets/images/scope-pwm-initial.jpeg){ loading=lazy }
-
 ![PSC cascade output on scope](../assets/images/scope-pwm-cascade-output.jpeg){ loading=lazy }
+
+![PWM at the scope — initial capture](../assets/images/scope-pwm-initial.jpeg){ loading=lazy }
 
 ![PWM working — early scope capture](../assets/images/scope-pwm-working.jpg){ loading=lazy }
 

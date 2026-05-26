@@ -58,6 +58,9 @@ hardware/single-bridge-v4/renders/**/*.png filter=lfs diff=lfs merge=lfs -text
 hardware/single-bridge-v4/gerbers/**/*.zip filter=lfs diff=lfs merge=lfs -text
 # Large scope captures from the RISC-V folder dump
 docs/assets/images/scope-pwm-*.jpg         filter=lfs diff=lfs merge=lfs -text
+# Headline result + poster (uploaded later, > 900 KB each)
+docs/assets/images/100v-output-5-levels.png filter=lfs diff=lfs merge=lfs -text
+docs/assets/images/demo-poster.jpeg        filter=lfs diff=lfs merge=lfs -text
 # Experimental RISC-V SoC tape-out artifacts (GDS files up to 49 MB; renders up to 4 MB each)
 experimental/risc-v-soc/macros/**/*.gds    filter=lfs diff=lfs merge=lfs -text
 experimental/risc-v-soc/renders/**/*.png   filter=lfs diff=lfs merge=lfs -text

@@ -4,6 +4,12 @@ title: Final graduation report
 
 # Final graduation report — 5-Level Cascaded H-Bridge Inverter
 
+<p align="center">
+  <img src="../assets/images/demo-poster.jpeg" alt="CHB Inverter project poster" width="65%"/>
+  <br/>
+  <sub><i>The project poster — a one-page summary of the work. Downloadable as <a href="../assets/pdfs/CHB_Inverter_Poster_v5.pdf">PDF</a> or <a href="../assets/pdfs/CHB_Inverter_Poster.pptx">editable PowerPoint</a>.</i></sub>
+</p>
+
 !!! info "Document status — skeleton (Pass 1)"
     This is the **Pass-1 skeleton** of the consolidated graduation report. Each section header below has a stub paragraph indicating the planned scope and sources. **Pass 2** expands every section using the source material; **Pass 3** does cross-references and terminology polish. The skeleton structure is locked once the user signs off.
     

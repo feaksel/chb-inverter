@@ -1,7 +1,9 @@
 # 5-Level Cascaded H-Bridge Inverter
 
 <p align="center">
-  <img src="docs/assets/images/demo-stand-wired.jpeg" alt="The 5-level CHB inverter on the demo stand, fully wired" width="80%"/>
+  <img src="docs/assets/images/100v-output-5-levels.png" alt="Oscilloscope: 100 V output with 5 distinct cascade levels — the project deliverable" width="85%"/>
+  <br/>
+  <sub><i>The headline result — 100 V output with 5 distinct cascade levels under sustained PSC-PWM at 5 kHz, no filter.</i></sub>
 </p>
 
 <p align="center">
@@ -14,36 +16,42 @@
 
 Modular **5-level cascaded H-bridge multilevel inverter** built around two single-bridge PCB modules and an **STM32 Nucleo-F303RE** running **phase-shifted carrier PWM** at 5 kHz. Bench-validated, demonstrated, and now consolidated into a citable engineering record. Built as the **ELE 401/402 graduation project** at **Hacettepe University EEE** — Spring 2026.
 
-> **Status:** Hardware fabricated, populated, and bench-validated. Firmware deployed. Five distinct cascade output levels confirmed on the oscilloscope. Bridges thermally balanced under sustained load. **Demonstration successful.**
+> **Status:** Hardware fabricated, populated, and bench-validated. Firmware deployed. Five distinct cascade output levels confirmed on the oscilloscope at 100 V cascade output. Bridges thermally balanced under sustained load. **Demonstration successful.**
 
 ## Quick links
 
 <table>
   <tr>
-    <td align="center"><a href="https://feaksel.github.io/chb-inverter/"><img src="docs/assets/images/abstract-system-diagram.png" width="220"/></a><br/><b>Documentation site</b></td>
-    <td align="center"><a href="docs/hardware/build-guide-v4.md"><img src="docs/assets/images/schematic-full-design.png" width="220"/></a><br/><b>Build Guide v4.0</b></td>
-    <td align="center"><a href="docs/assets/pdfs/CHB_Inverter_Poster_v5.pdf"><img src="docs/assets/images/cascade-control-overlap.png" width="220"/></a><br/><b>Project poster (PDF)</b></td>
+    <td align="center" width="33%"><a href="https://feaksel.github.io/chb-inverter/"><img src="docs/assets/images/abstract-system-diagram.png" width="220"/></a><br/><b>Documentation site</b></td>
+    <td align="center" width="33%"><a href="docs/hardware/build-guide-v4.md"><img src="docs/assets/images/schematic-full-design.png" width="220"/></a><br/><b>Build Guide v4.0</b></td>
+    <td align="center" width="33%"><a href="docs/final-report/"><img src="docs/assets/images/demo-poster.jpeg" width="220"/></a><br/><b>Final report</b></td>
   </tr>
   <tr>
     <td align="center"><a href="firmware/stm32-f303re/"><img src="docs/assets/images/stm32-only-diagram.png" width="220"/></a><br/><b>Firmware (STM32 + dashboard)</b></td>
-    <td align="center"><a href="hardware/single-bridge-v4/"><img src="docs/assets/images/schematic-modular.png" width="220"/></a><br/><b>Hardware (KiCad + BOM + gerbers)</b></td>
-    <td align="center"><a href="docs/final-report/"><img src="docs/assets/images/hybrid-system-diagram.png" width="220"/></a><br/><b>Consolidated final report</b></td>
+    <td align="center"><a href="hardware/single-bridge-v4/"><img src="hardware/single-bridge-v4/renders/pcb-3d-render.png" width="220"/></a><br/><b>Hardware (KiCad + BOM + gerbers)</b></td>
+    <td align="center"><a href="docs/bringup/first-session.md"><img src="docs/assets/images/scope-pwm-cascade-output.jpeg" width="220"/></a><br/><b>Bring-up session</b></td>
   </tr>
 </table>
 
-## The headline result
-
-Five distinct cascade output levels on the oscilloscope, both bridges thermally matched, under sustained PSC-PWM operation at 5 kHz:
-
-<p align="center">
-  <img src="docs/assets/images/scope-pwm-cascade-output.jpeg" alt="Oscilloscope capture of the PSC cascade output — 5 distinct levels visible" width="60%"/>
-</p>
-
 ## What was built
 
-Two identical single-bridge PCB modules (4-layer JLCPCB, IRFB4110 power MOSFETs) cascaded to produce 5 distinct output voltage levels. The STM32 F303RE generates **phase-shifted carrier PWM** at 5 kHz with bit-banged **MCP3201** sensing isolated via **6N137** optocouplers. A **PySide6** desktop dashboard provides full operator control over UART.
+Two identical **single-bridge PCB modules** (4-layer JLCPCB, **IRFB4110** power MOSFETs) cascaded to produce 5 distinct output voltage levels. The STM32 F303RE generates **phase-shifted carrier PWM** at 5 kHz with bit-banged **MCP3201** sensing isolated via **6N137** optocouplers. A **PySide6** desktop dashboard provides full operator control over UART.
+
+<p align="center">
+  <img src="docs/assets/images/lab-testing-setup-hero.jpeg" alt="Lab testing setup — the two cascaded single-bridge modules wired into the bench rig" width="80%"/>
+  <br/>
+  <sub><i>Lab testing setup — the two cascaded single-bridge modules driven by the Nucleo, with the dashboard live on the bench PC.</i></sub>
+</p>
 
 The PSC modulation gives natural bridge-balance — both H-bridges carry equal switching load. The deviation from the build-guide's original IPD LS-PWM (which had inherent bridge-loss asymmetry) is documented in the [PSC vs. LSPWM design note](docs/design-notes/psc-vs-lspwm.md). The iteration story from the early IRFZ44N / IPD layouts through the as-built IRFB4110 / PSC design is in [iteration history](docs/iteration-history/).
+
+## On the demo stand
+
+<p align="center">
+  <img src="docs/assets/images/demo-stand-wired.jpeg" alt="The 5-level CHB inverter on the demo stand, fully wired" width="80%"/>
+  <br/>
+  <sub><i>Demo stand — the inverter wired into the bench supplies + load. Five levels visible on the scope as soon as the supplies were brought up.</i></sub>
+</p>
 
 ## Team
 
