@@ -5,7 +5,7 @@ title: Grounding fix
 # Grounding fix
 
 <figure markdown="span">
-  ![Top-down KiCad render — the iteration-4 layout that fixes the grounding issue](../../hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
+  ![Top-down KiCad render — the iteration-4 layout that fixes the grounding issue](https://raw.githubusercontent.com/feaksel/chb-inverter/main/hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
   <figcaption>The iteration-4 single-bridge module. The 4-layer stack-up keeps the controller-side and bridge-side grounds physically separated through the inner pours — exactly the fix this page documents.</figcaption>
 </figure>
 

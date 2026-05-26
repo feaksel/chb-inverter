@@ -2,7 +2,7 @@
 
 <figure markdown="span">
   ![Five distinct cascade levels at 100 V — the bench-validated result](../assets/images/100v-output-5-levels.png){ loading=lazy width=80% }
-  <figcaption>Bench result — 100 V cascade output, five distinct levels visible without a filter. The Simulink prediction (4.9 % THD pre-filter) holds at this operating point modulo the ideal-switch caveats noted in the <a href="overview/">overview</a>.</figcaption>
+  <figcaption>Bench result — 100 V cascade output, five distinct levels visible without a filter. The Simulink prediction (4.9 % THD pre-filter) holds at this operating point modulo the ideal-switch caveats noted in the <a href="../overview/">overview</a>.</figcaption>
 </figure>
 
 ## Pre-hardware (simulation)

@@ -1,7 +1,7 @@
 # 5-Level Cascaded H-Bridge Inverter
 
 <p align="center">
-  <img src="docs\assets\images\inverter pcb .png" alt="Half-Bridge Module Fully populated Hardware"/>
+  <img src="docs/assets/images/inverter-pcb.png" alt="Half-bridge module — fully populated hardware" width="80%"/>
   <br/>
   <sub><i>Hardware Module</i></sub>
 </p>

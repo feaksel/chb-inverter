@@ -1,7 +1,7 @@
 # Hardware
 
 <figure markdown="span">
-  ![Top-down KiCad render of the single-bridge v4 PCB](../../hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
+  ![Top-down KiCad render of the single-bridge v4 PCB](https://raw.githubusercontent.com/feaksel/chb-inverter/main/hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
   <figcaption>Top-down KiCad render of the single-bridge v4 PCB. Two identical instances are cascaded to form the 5-level inverter.</figcaption>
 </figure>
 

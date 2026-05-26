@@ -5,7 +5,7 @@ title: Bill of materials
 # Bill of materials
 
 <figure markdown="span">
-  ![Top-down KiCad render — the board this BOM populates](../../hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
+  ![Top-down KiCad render — the board this BOM populates](https://raw.githubusercontent.com/feaksel/chb-inverter/main/hardware/single-bridge-v4/renders/pcb-top-down-kicad.jpeg){ loading=lazy width=80% }
   <figcaption>The single-bridge v4 PCB. Two identical instances of this board are populated from the BOM below; the project total is two modules + spares.</figcaption>
 </figure>
 
