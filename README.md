@@ -1,6 +1,12 @@
 # 5-Level Cascaded H-Bridge Inverter
 
 <p align="center">
+  <img src="docs\assets\images\inverter pcb .png" alt="Half-Bridge Module Fully populated Hardware"/>
+  <br/>
+  <sub><i>Hardware Module</i></sub>
+</p>
+
+<p align="center">
   <img src="docs/assets/images/100v-output-5-levels.png" alt="Oscilloscope: 100 V output with 5 distinct cascade levels — the project deliverable" width="85%"/>
   <br/>
   <sub><i>The headline result — 100 V output with 5 distinct cascade levels under sustained PSC-PWM at 5 kHz, no filter.</i></sub>
